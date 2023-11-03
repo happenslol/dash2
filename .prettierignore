@@ -1,0 +1,5 @@
+/node_modules
+/pnpm-lock.yaml
+/.direnv
+/src-tauri/*
+!/src-tauri/tauri.conf.json

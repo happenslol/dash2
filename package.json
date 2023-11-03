@@ -1,0 +1,28 @@
+{
+  "name": "dash2",
+  "version": "0.0.0",
+  "description": "",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "tauri": "tauri",
+    "fix": "prettier -w ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/api": "^1.5.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.1",
+    "@typescript-eslint/parser": "^6.9.1",
+    "eslint": "^8.52.0",
+    "prettier": "^3.0.3",
+    "solid-js": "^1.7.8"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.0",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.4",
+    "vite-plugin-solid": "^2.7.0"
+  }
+}
