@@ -33,14 +33,6 @@
     "security": {
       "csp": null
     },
-    "windows": [
-      {
-        "fullscreen": false,
-        "resizable": true,
-        "title": "dash2",
-        "width": 800,
-        "height": 600
-      }
-    ]
+    "windows": []
   }
 }

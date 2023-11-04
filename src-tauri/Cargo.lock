@@ -514,11 +514,14 @@ dependencies = [
 name = "dash2"
 version = "0.0.0"
 dependencies = [
+ "gdk",
+ "gtk",
  "gtk-layer-shell",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "webkit2gtk",
 ]
 
 [[package]]
