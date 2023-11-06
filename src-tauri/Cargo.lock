@@ -514,6 +514,7 @@ dependencies = [
 name = "dash2"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "gdk",
  "gtk",
  "gtk-layer-shell",
