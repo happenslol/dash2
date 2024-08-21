@@ -10,7 +10,7 @@ export default defineConfig(async () => ({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        edge: resolve(__dirname, "edge.html"),
+        login: resolve(__dirname, "login.html"),
       },
     },
   },

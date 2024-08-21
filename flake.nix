@@ -13,7 +13,7 @@
       pkgs = nixpkgs.legacyPackages.${system};
 
       libraries = with pkgs; [
-        webkitgtk
+        webkitgtk_4_1
         gtk3
         gtk-layer-shell
         cairo
@@ -24,6 +24,7 @@
       ];
 
       packages = with pkgs; [
+        webkitgtk_4_1
         curl
         wget
         pkg-config
