@@ -18,6 +18,8 @@ gtk-layer-shell = "0.8.1"
 gtk = "0.18.1"
 gdk = "0.18.0"
 webkit2gtk = "2.0.1"
+gdkwayland = "0.18.0"
+gdkwayland-sys = "0.18.0"
 tokio = { version = "1.39.3", features = ["full"] }
 upower_dbus = "0.3.2"
 zbus = "^3.7.0"

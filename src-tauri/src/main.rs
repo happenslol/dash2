@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use futures::stream::StreamExt;
-use gdk::{prelude::*, Monitor};
+use gdk::{prelude::*, Monitor, glib::translate::ToGlibPtr};
 use gtk::traits::WidgetExt;
 use gtk_layer_shell::LayerShell;
 use serde::Deserialize;
@@ -239,6 +239,12 @@ fn create_overlay_window(
   let (width, height) = size;
   gtk_window.set_size_request(width, height);
   gtk_window.set_app_paintable(true);
+
+  gtk_window.connect_show(|window| {
+    let gdk_window = window.window().unwrap().downcast::<gdkwayland::WaylandWindow>().unwrap();
+    let surface = unsafe { gdk_wayland_sys::gdk_wayland_window_get_wl_surface(gdk_window.to_glib_none().0) };
+    println!("showing window: {surface:?}");
+  });
 
   window.with_webview(|webview| {
     let webview = webview.inner();
