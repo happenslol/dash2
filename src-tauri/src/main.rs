@@ -1,47 +1,100 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(dead_code)]
 
 use anyhow::Result;
-use gdk::Monitor;
+use futures::stream::StreamExt;
+use gdk::{prelude::*, Monitor};
 use gtk::traits::WidgetExt;
 use gtk_layer_shell::LayerShell;
 use serde::Deserialize;
+use tauri::{Emitter, Listener, Manager};
 use tokio::{
   io::{AsyncReadExt, AsyncWriteExt},
   net::UnixStream,
 };
 use webkit2gtk::WebViewExt;
-use tauri::{Manager, Emitter};
 
 #[tokio::main]
 async fn main() {
   tauri::async_runtime::set(tokio::runtime::Handle::current());
 
   let app = tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![quit])
+    .invoke_handler(tauri::generate_handler![quit, submit_password])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");
+
+  let connection = zbus::Connection::system().await.unwrap();
+  let upower = upower_dbus::UPowerProxy::new(&connection).await.unwrap();
+
+  let display_device = upower.get_display_device().await.unwrap();
+  let ttype = display_device.type_().await.unwrap();
+  let has_battery = ttype == upower_dbus::BatteryType::Battery;
+
+  let mut percentage = 0f64;
+  let mut psu_connected = false;
+
+  if has_battery {
+    percentage = display_device.percentage().await.unwrap();
+    psu_connected = display_device.power_supply().await.unwrap();
+
+    let handle = app.app_handle().clone();
+    let display_device_handle = display_device.clone();
+    tokio::spawn(async move {
+      let mut stream = display_device_handle.receive_percentage_changed().await;
+      while let Some(ev) = stream.next().await {
+        let percentage = ev.get().await.unwrap();
+        handle.emit("battery-percentage", percentage).unwrap();
+      }
+    });
+
+    let handle = app.app_handle().clone();
+    let display_device_handle = display_device.clone();
+    tokio::spawn(async move {
+      let mut stream = display_device_handle.receive_power_supply_changed().await;
+      while let Some(ev) = stream.next().await {
+        let psu_connected = ev.get().await.unwrap();
+        handle.emit("psu-connected", psu_connected).unwrap();
+      }
+    });
+  }
 
   let display = gdk::Display::default().unwrap();
   let n_monitors = display.n_monitors();
 
-  let hl_monitors = get_hyprland_monitors().await;
-
   let mut greeter_windows: Vec<tauri::WebviewWindow> = Vec::with_capacity(n_monitors as usize);
   for i in 0..n_monitors {
     let monitor = display.monitor(i).unwrap();
-    let hl_monitor = hl_monitors.iter().find(|m| m.id == i).unwrap();
+    let window_label = format!("greeter-{i}");
+    let is_primary = i == 0;
+
     let window = create_overlay_window(
       &app,
-      "test",
-      "src/login/index.html",
+      &window_label,
+      if is_primary {
+        "src/login/index.html"
+      } else {
+        "src/login/blank.html"
+      },
       &monitor,
       gtk_layer_shell::Layer::Top,
-      (true, true, true, true),
-      (0, 0),
+      (false, false, false, false),
+      (1000, 1000),
     )
     .expect("failed to create window");
 
-    window.emit("test", "test").unwrap();
+    let window_handle = window.clone();
+    window.listen("ready", move |ev| {
+      window_handle.unlisten(ev.id());
+
+      if has_battery {
+        window_handle.emit("has-battery", ()).unwrap();
+        window_handle
+          .emit("battery-percentage", percentage)
+          .unwrap();
+        window_handle.emit("psu-connected", psu_connected).unwrap();
+      }
+    });
+
     greeter_windows.push(window);
   }
 
@@ -49,8 +102,13 @@ async fn main() {
 }
 
 #[tauri::command]
-async fn quit(app: tauri::AppHandle, window: tauri::Window) {
+async fn quit(app: tauri::AppHandle) {
   app.exit(0);
+}
+
+#[tauri::command]
+async fn submit_password(value: String) {
+  println!("password submitted: {value}");
 }
 
 #[derive(Debug, Deserialize)]

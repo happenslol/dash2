@@ -1,19 +1,31 @@
 import { invoke } from "@tauri-apps/api/core"
-import { listen } from "@tauri-apps/api/event"
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
-import { createSignal } from "solid-js"
+import { format } from "date-fns"
+import { createSignal, onCleanup, Show } from "solid-js"
 
-const timeout = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms))
+const current = getCurrentWebviewWindow()
+console.log("label:", current.label)
 
 export const Login = () => {
   const [isLoading, setIsLoading] = createSignal(false)
-  listen("test", async (arg) => console.log("got arg:", arg))
+  const [hasBattery, setHasBattery] = createSignal(false)
+  const [psuConnected, setPsuConnected] = createSignal(false)
+  const [batteryPercentage, setBatteryPercentage] = createSignal(0)
 
-  const quit = async () => {
+  const [passwordField, setPasswordField] = createSignal("")
+
+  current.listen("has-battery", () => setHasBattery(true))
+  current.listen<number>("battery-percentage", ev =>
+    setBatteryPercentage(ev.payload)
+  )
+  current.listen<boolean>("psu-connected", ev => setPsuConnected(ev.payload))
+
+  current.emit("ready")
+
+  const submit = async (value: string) => {
     setIsLoading(true)
-    await timeout(3000)
-    await invoke("quit")
+    await invoke("submit_password", { value })
   }
 
   return (
@@ -25,13 +37,16 @@ export const Login = () => {
 
         <div class="flex gap-2 items-center relative">
           <input
+            value={passwordField()}
+            onChange={ev => setPasswordField(ev.target.value)}
             disabled={isLoading()}
+            onSubmit={() => submit(passwordField())}
             type="password"
-            class="focus:outline-none transition w-[200px] rounded-full px-4 py-1 text-stone-200 bg-stone-700 hover:bg-stone-600 focus:bg-stone-600 border border-stone-700 focus:border-stone-500"
+            class="focus:outline-none transition w-[200px] rounded-full px-4 py-1 text-stone-200 bg-stone-700 hover:bg-stone-600 focus:bg-stone-600 border border-stone-700 focus:border-stone-500 disabled:opacity-50 disabled:pointer-events-none"
           />
 
           <button
-            onClick={() => quit()}
+            onClick={() => submit(passwordField())}
             disabled={isLoading()}
             class={clsx(
               "absolute right-[-40px] rounded-full border border-stone-400 flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
@@ -47,10 +62,17 @@ export const Login = () => {
             />
           </button>
         </div>
-        <div class="text-stone-400 flex items-center gap-2">
-          <span class="text-sm font-bold">65%</span>
-          <i class="text-sm icon-[fa--battery]"></i>
-        </div>
+
+        <Show when={hasBattery()}>
+          <div class="text-stone-400 flex items-center gap-2">
+            <span class="text-sm font-bold">{batteryPercentage()}%</span>
+            <i class="text-sm icon-[fa--battery]"></i>
+
+            <Show when={psuConnected()}>
+              <span>psu connected</span>
+            </Show>
+          </div>
+        </Show>
       </div>
 
       <div class="fixed bottom-6 flex flex-col gap-4">
@@ -63,18 +85,29 @@ export const Login = () => {
 
 const PowerControls = () => (
   <div class="flex items-center justify-center gap-2">
-    <div class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer">
+    <button class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer">
       <i class="text-stone-200 icon-[material-symbols--sleep-rounded] w-[20px]"></i>
-    </div>
+    </button>
 
-    <div class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer">
+    <button
+      onClick={() => invoke("quit")}
+      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer"
+    >
       <i class="text-stone-200 icon-[mingcute--power-fill] w-[20px]"></i>
-    </div>
+    </button>
   </div>
 )
 
-const Clock = () => (
-  <div class="text-stone-200 text-3xl text-center font-bold select-none">
-    21:34
-  </div>
-)
+const getTime = () => format(new Date(), "p")
+
+const Clock = () => {
+  const [time, setTime] = createSignal(getTime())
+  const interval = setInterval(() => setTime(getTime()), 1000)
+  onCleanup(() => clearInterval(interval))
+
+  return (
+    <div class="text-stone-200 text-3xl text-center font-bold select-none">
+      {time()}
+    </div>
+  )
+}
