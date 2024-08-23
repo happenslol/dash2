@@ -14,6 +14,59 @@ use tokio::{
 };
 use webkit2gtk::WebViewExt;
 
+mod pam;
+mod scrambler;
+
+struct SessionConv(String);
+
+impl pam::converse::Converse for SessionConv {
+  fn prompt_echo(&self, _msg: &str) -> Result<String, ()> {
+    Err(())
+  }
+  fn prompt_blind(&self, _msg: &str) -> Result<String, ()> {
+    Ok(self.0.clone())
+  }
+  fn info(&self, msg: &str) -> Result<(), ()> {
+    eprintln!("pam info: {msg}");
+    Err(())
+  }
+  fn error(&self, msg: &str) -> Result<(), ()> {
+    eprintln!("pam error: {msg}");
+    Err(())
+  }
+}
+
+fn get_username(uid: u32) -> Option<String> {
+  let mut passwd = unsafe { std::mem::zeroed::<libc::passwd>() };
+  let mut buf = vec![0; 2048];
+  let mut result = std::ptr::null_mut::<libc::passwd>();
+
+  loop {
+    let r = unsafe { libc::getpwuid_r(uid, &mut passwd, buf.as_mut_ptr(), buf.len(), &mut result) };
+
+    if r != libc::ERANGE {
+      break;
+    }
+
+    let newsize = buf.len().checked_mul(2)?;
+    buf.resize(newsize, 0);
+  }
+
+  if result.is_null() {
+    // There is no such user, or an error has occurred.
+    // errno gets set if there’s an error.
+    return None;
+  }
+
+  if result != &mut passwd {
+    // The result of getpwuid_r should be its input passwd.
+    return None;
+  }
+
+  let raw = unsafe { std::ffi::CStr::from_ptr(result.read().pw_name) };
+  Some(String::from(raw.to_string_lossy()))
+}
+
 #[tokio::main]
 async fn main() {
   tauri::async_runtime::set(tokio::runtime::Handle::current());
@@ -66,6 +119,9 @@ async fn main() {
     let monitor = display.monitor(i).unwrap();
     let window_label = format!("greeter-{i}");
     let is_primary = i == 0;
+    if !is_primary {
+      continue;
+    }
 
     let window = create_overlay_window(
       &app,
@@ -107,8 +163,26 @@ async fn quit(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-async fn submit_password(value: String) {
-  println!("password submitted: {value}");
+async fn submit_password(app: tauri::AppHandle, window: tauri::WebviewWindow, value: String) {
+  let uid = unsafe { libc::getuid() };
+  let username = get_username(uid).unwrap();
+
+  let conv = Box::pin(SessionConv(value));
+  let mut pam = pam::session::PamSession::start("dash2", &username, conv).unwrap();
+
+  if let Err(err) = pam.authenticate(pam_sys::PamFlag::NONE) {
+    eprintln!("auth err: {err}");
+    window.emit("auth-error", err.to_string()).unwrap();
+    return;
+  };
+
+  if let Err(err) = pam.setcred(pam_sys::PamFlag::REFRESH_CRED) {
+    eprintln!("auth setcred err: {err}");
+    window.emit("auth-error", err.to_string()).unwrap();
+    return;
+  };
+
+  app.exit(0);
 }
 
 #[derive(Debug, Deserialize)]

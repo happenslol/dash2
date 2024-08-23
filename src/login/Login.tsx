@@ -5,7 +5,6 @@ import { format } from "date-fns"
 import { createSignal, onCleanup, Show } from "solid-js"
 
 const current = getCurrentWebviewWindow()
-console.log("label:", current.label)
 
 export const Login = () => {
   const [isLoading, setIsLoading] = createSignal(false)
@@ -13,7 +12,7 @@ export const Login = () => {
   const [psuConnected, setPsuConnected] = createSignal(false)
   const [batteryPercentage, setBatteryPercentage] = createSignal(0)
 
-  const [passwordField, setPasswordField] = createSignal("")
+  const [authError, setAuthError] = createSignal<string | null>(null)
 
   current.listen("has-battery", () => setHasBattery(true))
   current.listen<number>("battery-percentage", ev =>
@@ -21,12 +20,19 @@ export const Login = () => {
   )
   current.listen<boolean>("psu-connected", ev => setPsuConnected(ev.payload))
 
+  current.listen<string>("auth-error", ev => {
+    setAuthError(ev.payload)
+    setIsLoading(false)
+  })
+
   current.emit("ready")
 
   const submit = async (value: string) => {
     setIsLoading(true)
     await invoke("submit_password", { value })
   }
+
+  let passwordField!: HTMLInputElement
 
   return (
     <div class="w-full h-screen flex items-center justify-center">
@@ -37,16 +43,18 @@ export const Login = () => {
 
         <div class="flex gap-2 items-center relative">
           <input
-            value={passwordField()}
-            onChange={ev => setPasswordField(ev.target.value)}
+            ref={passwordField}
+            onKeyDown={ev => {
+              if (ev.key === "Enter") submit(passwordField.value)
+            }}
+            autofocus
             disabled={isLoading()}
-            onSubmit={() => submit(passwordField())}
             type="password"
             class="focus:outline-none transition w-[200px] rounded-full px-4 py-1 text-stone-200 bg-stone-700 hover:bg-stone-600 focus:bg-stone-600 border border-stone-700 focus:border-stone-500 disabled:opacity-50 disabled:pointer-events-none"
           />
 
           <button
-            onClick={() => submit(passwordField())}
+            onClick={() => submit(passwordField.value)}
             disabled={isLoading()}
             class={clsx(
               "absolute right-[-40px] rounded-full border border-stone-400 flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
@@ -62,6 +70,10 @@ export const Login = () => {
             />
           </button>
         </div>
+
+        <Show when={authError != null}>
+          <div class="text-red-600">{authError()}</div>
+        </Show>
 
         <Show when={hasBattery()}>
           <div class="text-stone-400 flex items-center gap-2">

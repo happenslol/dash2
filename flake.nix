@@ -13,7 +13,6 @@
       pkgs = nixpkgs.legacyPackages.${system};
 
       libraries = with pkgs; [
-        webkitgtk_4_1
         gtk3
         gtk-layer-shell
         cairo
@@ -35,6 +34,7 @@
         libsoup
         webkitgtk
         librsvg
+        pam
       ];
     in {
       devShell = pkgs.mkShell {
