@@ -5,6 +5,7 @@ use tauri::{Emitter, Manager};
 use crate::{
   battery::{BatteryState, BatterySubscription},
   pam,
+  power::Power,
   util::get_current_username,
 };
 
@@ -27,9 +28,14 @@ pub fn run() -> Result<()> {
 
     let zbus_conn = zbus::Connection::system().await?;
     let battery = BatterySubscription::new(app.handle(), &zbus_conn).await?;
+    let power = Power::new(zbus_conn);
 
     let (unlock_tx, unlock_rx) = channel();
-    app.manage(TauriState { unlock_tx, battery });
+    app.manage(TauriState {
+      unlock_tx,
+      battery,
+      power,
+    });
 
     let lock_handle = wayland::lock_session(app.handle(), unlock_rx)?;
 
@@ -45,13 +51,32 @@ pub fn run() -> Result<()> {
 struct TauriState<'a> {
   unlock_tx: Sender<()>,
   battery: BatterySubscription<'a>,
+  power: Power,
 }
 
 #[tauri::command]
-async fn poweroff() {}
+async fn poweroff(app: tauri::AppHandle) {
+  let state = app.state::<TauriState>();
+  state.power.poweroff().await.unwrap_or_else(|err| {
+    eprintln!("failed to poweroff: {err}");
+  });
+}
 
 #[tauri::command]
-async fn suspend() {}
+async fn reboot(app: tauri::AppHandle) {
+  let state = app.state::<TauriState>();
+  state.power.reboot().await.unwrap_or_else(|err| {
+    eprintln!("failed to poweroff: {err}");
+  });
+}
+
+#[tauri::command]
+async fn suspend(app: tauri::AppHandle) {
+  let state = app.state::<TauriState>();
+  state.power.poweroff().await.unwrap_or_else(|err| {
+    eprintln!("failed to suspend: {err}");
+  });
+}
 
 #[tauri::command]
 async fn get_battery_state(app: tauri::AppHandle) -> Option<BatteryState> {
