@@ -21,7 +21,8 @@ pub fn run() -> Result<()> {
         poweroff,
         submit_password,
         suspend,
-        get_battery_state
+        get_battery_state,
+        window_ready,
       ])
       .build(tauri::generate_context!())
       .expect("error while building tauri application");
@@ -31,13 +32,15 @@ pub fn run() -> Result<()> {
     let power = Power::new(zbus_conn);
 
     let (unlock_tx, unlock_rx) = channel();
+    let (window_ready_tx, window_ready_rx) = channel();
     app.manage(TauriState {
       unlock_tx,
+      window_ready_tx,
       battery,
       power,
     });
 
-    let lock_handle = wayland::lock_session(app.handle(), unlock_rx)?;
+    let lock_handle = wayland::lock_session(app.handle(), unlock_rx, window_ready_rx)?;
 
     app.run(|_, _| {});
     lock_handle
@@ -50,8 +53,17 @@ pub fn run() -> Result<()> {
 
 struct TauriState<'a> {
   unlock_tx: Sender<()>,
+  window_ready_tx: Sender<()>,
   battery: BatterySubscription<'a>,
   power: Power,
+}
+
+#[tauri::command]
+async fn window_ready(app: tauri::AppHandle) {
+  let state = app.state::<TauriState>();
+  state.window_ready_tx.send(()).unwrap_or_else(|err| {
+    eprintln!("failed to send window ready signal: {err}");
+  });
 }
 
 #[tauri::command]
@@ -73,7 +85,7 @@ async fn reboot(app: tauri::AppHandle) {
 #[tauri::command]
 async fn suspend(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
-  state.power.poweroff().await.unwrap_or_else(|err| {
+  state.power.suspend().await.unwrap_or_else(|err| {
     eprintln!("failed to suspend: {err}");
   });
 }

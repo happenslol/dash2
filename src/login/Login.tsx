@@ -13,7 +13,7 @@ type BatteryState = {
 }
 
 export const Login = () => {
-  const [isPrimary, setIsPrimary] = createSignal(true)
+  const [isPrimary, setIsPrimary] = createSignal(false)
   const [hasBattery, setHasBattery] = createSignal(false)
   const [psuConnected, setPsuConnected] = createSignal(false)
   const [batteryPercentage, setBatteryPercentage] = createSignal(0)
@@ -24,12 +24,14 @@ export const Login = () => {
   const [hasFingerprintError, setHasFingerprintError] = createSignal(false)
 
   onMount(async () => {
-    const state = await invoke<BatteryState | null>("get_battery_state")
-    if (state == null) return
+    await invoke("window_ready")
 
-    setHasBattery(true)
-    setBatteryPercentage(state.percentage)
-    setPsuConnected(state.psu_connected)
+    const state = await invoke<BatteryState | null>("get_battery_state")
+    if (state != null) {
+      setHasBattery(true)
+      setBatteryPercentage(state.percentage)
+      setPsuConnected(state.psu_connected)
+    }
   })
 
   current.listen<boolean>("psu-connected", ev => setPsuConnected(ev.payload))
@@ -58,7 +60,6 @@ export const Login = () => {
   )
 
   current.listen<boolean>("is-primary", ev => setIsPrimary(ev.payload))
-  current.emit("ready")
 
   const submit = async (value: string) => {
     if (isLoading()) return
@@ -174,7 +175,7 @@ type PowerControlsProps = {
 const PowerControls = (props: PowerControlsProps) => (
   <div class="flex items-center justify-center gap-2">
     <button
-      onClick={() => {}}
+      onClick={() => invoke("suspend")}
       disabled={props.disabled}
       class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
     >

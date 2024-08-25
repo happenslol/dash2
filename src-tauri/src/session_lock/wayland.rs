@@ -68,6 +68,7 @@ struct State {
 pub fn lock_session(
   app_handle: &tauri::AppHandle,
   unlock_rx: Channel<()>,
+  window_ready_rx: Channel<()>,
 ) -> Result<JoinHandle<()>> {
   let display = gdk::Display::default().ok_or(anyhow::anyhow!("failed to get default display"))?;
   let wl_display = display
@@ -96,6 +97,16 @@ pub fn lock_session(
 
     if let Err(err) = loop_handle.insert_source(unlock_rx, |_, _, app_data| app_data.unlock()) {
       eprintln!("failed to insert unlock source: {err}");
+      app_handle.exit(1);
+      return;
+    }
+
+    if let Err(err) = loop_handle.insert_source(window_ready_rx, |_, _, app_data| {
+      assign_primary(&app_data.lock_surfaces).unwrap_or_else(|err| {
+        eprintln!("failed to assign primary: {err}");
+      })
+    }) {
+      eprintln!("failed to insert window ready source: {err}");
       app_handle.exit(1);
       return;
     }
@@ -229,6 +240,31 @@ impl State {
     self.running = false;
   }
 
+  /// Attempts to update the name for the given output in the lock surface list.
+  /// Returns true if the output was present or anything went wrong, false otherwise.
+  fn refresh_output_name(&mut self, output: &wl_output::WlOutput) -> bool {
+    let surfaces = self.lock_surfaces.clone();
+    let Ok(mut surfaces) = surfaces.lock() else {
+      eprintln!("failed to lock surfaces for new output");
+      return true;
+    };
+
+    if let Some(found) = surfaces.iter_mut().find(|s| s.output == *output) {
+      let output_name = match self.get_output_name(output) {
+        Ok(output_name) => output_name,
+        Err(err) => {
+          eprintln!("failed to get output name: {err}");
+          return true;
+        }
+      };
+
+      found.output_name = output_name;
+      return true;
+    }
+
+    false
+  }
+
   fn create_lock_surface(&mut self, qh: &QueueHandle<Self>, output: &WlOutput) -> Result<()> {
     let output_name = self.get_output_name(output)?;
 
@@ -337,25 +373,11 @@ impl OutputHandler for State {
     qh: &QueueHandle<Self>,
     output: wl_output::WlOutput,
   ) {
-    {
-      let surfaces = self.lock_surfaces.clone();
-      let Ok(mut surfaces) = surfaces.lock() else {
-        eprintln!("failed to lock surfaces for new output");
-        return;
-      };
-
-      if let Some(found) = surfaces.iter_mut().find(|s| s.output == output) {
-        let output_name = match self.get_output_name(&output) {
-          Ok(output_name) => output_name,
-          Err(err) => {
-            eprintln!("failed to get output name: {err}");
-            return;
-          }
-        };
-
-        found.output_name = output_name;
-        return;
-      }
+    if self.refresh_output_name(&output) {
+      assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+        eprintln!("failed to assign primary: {err}");
+      });
+      return;
     }
 
     self.create_lock_surface(qh, &output).unwrap_or_else(|err| {
@@ -369,25 +391,7 @@ impl OutputHandler for State {
     _qh: &QueueHandle<Self>,
     output: wl_output::WlOutput,
   ) {
-    {
-      let surfaces = self.lock_surfaces.clone();
-      let Ok(mut surfaces) = surfaces.lock() else {
-        eprintln!("failed to lock surfaces for destroyed output");
-        return;
-      };
-
-      let Some(found) = surfaces.iter_mut().find(|s| s.output == output) else {
-        eprintln!("no surface found for destroyed output");
-        return;
-      };
-
-      let Ok(output_name) = self.get_output_name(&output) else {
-        eprintln!("failed to get output name");
-        return;
-      };
-
-      found.output_name = output_name;
-    }
+    self.refresh_output_name(&output);
 
     assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
       eprintln!("failed to assign primary: {err}");
