@@ -35,6 +35,7 @@
         webkitgtk
         librsvg
         pam
+        libxkbcommon
       ];
     in {
       devShell = pkgs.mkShell {

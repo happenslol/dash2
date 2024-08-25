@@ -1,109 +1,190 @@
+/* @refresh reload */
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
 import { format } from "date-fns"
-import { createSignal, onCleanup, Show } from "solid-js"
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 
 const current = getCurrentWebviewWindow()
 
+type BatteryState = {
+  percentage: number
+  psu_connected: boolean
+}
+
 export const Login = () => {
-  const [isLoading, setIsLoading] = createSignal(false)
+  const [isPrimary, setIsPrimary] = createSignal(true)
   const [hasBattery, setHasBattery] = createSignal(false)
   const [psuConnected, setPsuConnected] = createSignal(false)
   const [batteryPercentage, setBatteryPercentage] = createSignal(0)
 
-  const [authError, setAuthError] = createSignal<string | null>(null)
+  const [isCheckingPassword, setIsCheckingPassword] = createSignal(false)
+  const [isCheckingFingerprint, setIsCheckingFingerprint] = createSignal(false)
+  const [hasPasswordError, setHasPasswordError] = createSignal(false)
+  const [hasFingerprintError, setHasFingerprintError] = createSignal(false)
 
-  current.listen("has-battery", () => setHasBattery(true))
+  onMount(async () => {
+    const state = await invoke<BatteryState | null>("get_battery_state")
+    if (state == null) return
+
+    setHasBattery(true)
+    setBatteryPercentage(state.percentage)
+    setPsuConnected(state.psu_connected)
+  })
+
+  current.listen<boolean>("psu-connected", ev => setPsuConnected(ev.payload))
   current.listen<number>("battery-percentage", ev =>
     setBatteryPercentage(ev.payload)
   )
-  current.listen<boolean>("psu-connected", ev => setPsuConnected(ev.payload))
 
-  current.listen<string>("auth-error", ev => {
-    setAuthError(ev.payload)
-    setIsLoading(false)
+  current.listen<string>("password-error", () => {
+    setHasPasswordError(true)
+    setIsCheckingPassword(false)
+    passwordField.focus()
+    passwordField.select()
   })
 
+  current.listen("scanning-fingerprint", () => {
+    setIsCheckingFingerprint(true)
+  })
+
+  current.listen<string>("fingerprint-error", () => {
+    setHasFingerprintError(true)
+    setIsCheckingFingerprint(false)
+  })
+
+  const isLoading = createMemo(
+    () => isCheckingPassword() || isCheckingFingerprint()
+  )
+
+  current.listen<boolean>("is-primary", ev => setIsPrimary(ev.payload))
   current.emit("ready")
 
   const submit = async (value: string) => {
-    setIsLoading(true)
+    if (isLoading()) return
+    if (passwordField.value.length === 0) return
+
+    setIsCheckingPassword(true)
     await invoke("submit_password", { value })
   }
 
   let passwordField!: HTMLInputElement
 
   return (
-    <div class="w-full h-screen flex items-center justify-center">
-      <div class="flex flex-col items-center justify-center gap-4">
-        <img src="/profile.webp" class="rounded-full h-[100px]" />
+    <Show when={isPrimary()}>
+      <div class="w-full h-screen flex items-center justify-center cursor-default select-none">
+        <div class="flex flex-col items-center justify-center gap-4">
+          <img src="/profile.webp" class="rounded-full h-[100px]" />
 
-        <h1 class="text-stone-200 text-lg font-bold">happens</h1>
+          <h1 class="text-stone-200 text-lg font-bold">happens</h1>
 
-        <div class="flex gap-2 items-center relative">
-          <input
-            ref={passwordField}
-            onKeyDown={ev => {
-              if (ev.key === "Enter") submit(passwordField.value)
-            }}
-            autofocus
-            disabled={isLoading()}
-            type="password"
-            class="focus:outline-none transition w-[200px] rounded-full px-4 py-1 text-stone-200 bg-stone-700 hover:bg-stone-600 focus:bg-stone-600 border border-stone-700 focus:border-stone-500 disabled:opacity-50 disabled:pointer-events-none"
-          />
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-2 items-center relative">
+              <input
+                ref={passwordField}
+                onKeyDown={ev => {
+                  if (hasPasswordError()) setHasPasswordError(false)
+                  if (hasFingerprintError()) setHasFingerprintError(false)
+                  if (ev.key === "Enter") submit(passwordField.value)
+                }}
+                autofocus
+                disabled={isLoading()}
+                type="password"
+                class={clsx(
+                  "focus:outline-none transition w-[200px] rounded-full px-4 py-1 text-stone-200 bg-stone-700 hover:bg-stone-600 focus:bg-stone-600 border disabled:opacity-50 disabled:pointer-events-none",
+                  !hasPasswordError() &&
+                    "border-stone-700 focus:border-stone-500",
+                  hasPasswordError() && "border-red-500 focus:border-red-400"
+                )}
+              />
 
-          <button
-            onClick={() => submit(passwordField.value)}
-            disabled={isLoading()}
+              <button
+                onClick={() => submit(passwordField.value)}
+                disabled={isCheckingPassword()}
+                class={clsx(
+                  "absolute right-[-40px] rounded-full border flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
+                  isCheckingPassword() && "opacity-50",
+                  !hasFingerprintError() && "border-stone-400",
+                  hasFingerprintError() && "border-red-500"
+                )}
+              >
+                <i
+                  class={clsx(
+                    "text-stone-200 text-2xl",
+                    isCheckingPassword() &&
+                      "icon-[ph--circle-notch] animate-spin",
+                    isCheckingFingerprint() &&
+                      "icon-[ph--fingerprint] animate-pulse",
+                    !isLoading() && "icon-[mdi--arrow-right]"
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div
             class={clsx(
-              "absolute right-[-40px] rounded-full border border-stone-400 flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
-              isLoading() && "opacity-50"
+              "text-stone-400 flex items-center gap-2 relative",
+              !hasBattery() && "opacity-0"
             )}
           >
+            <span class="text-sm font-bold">{batteryPercentage()}%</span>
             <i
               class={clsx(
-                "text-stone-200 text-2xl",
-                isLoading() && "icon-[ph--circle-notch] animate-spin",
-                !isLoading() && "icon-[mdi--arrow-right]"
+                "text-sm icon-[fa--battery]",
+                getChargeClass(batteryPercentage())
               )}
-            />
-          </button>
+            ></i>
+
+            <i
+              class={clsx(
+                "absolute -right-7",
+                psuConnected() &&
+                  batteryPercentage() <= 95 &&
+                  "text-xl text-amber-500 icon-[ph--lightning-fill]",
+                psuConnected() &&
+                  batteryPercentage() > 95 &&
+                  "text-lime-500 icon-[fa-solid--pepper-hot]"
+              )}
+            ></i>
+          </div>
         </div>
 
-        <Show when={authError != null}>
-          <div class="text-red-600">{authError()}</div>
-        </Show>
-
-        <Show when={hasBattery()}>
-          <div class="text-stone-400 flex items-center gap-2">
-            <span class="text-sm font-bold">{batteryPercentage()}%</span>
-            <i class="text-sm icon-[fa--battery]"></i>
-
-            <Show when={psuConnected()}>
-              <span>psu connected</span>
-            </Show>
-          </div>
-        </Show>
+        <div class="fixed bottom-6 flex flex-col gap-4">
+          <PowerControls disabled={isLoading()} />
+          <Clock />
+        </div>
       </div>
-
-      <div class="fixed bottom-6 flex flex-col gap-4">
-        <PowerControls />
-        <Clock />
-      </div>
-    </div>
+    </Show>
   )
 }
 
-const PowerControls = () => (
+const getChargeClass = (percentage: number) => {
+  if (percentage <= 5) return "icon-[fa--battery-empty] text-red-500"
+  if (percentage <= 20) return "icon-[fa--battery-quarter] text-amber-600"
+  if (percentage <= 50) return "icon-[fa--battery-half]"
+  if (percentage <= 80) return "icon-[fa--battery-three-quarters]"
+  return "icon-[fa--battery-full]"
+}
+
+type PowerControlsProps = {
+  disabled?: boolean
+}
+
+const PowerControls = (props: PowerControlsProps) => (
   <div class="flex items-center justify-center gap-2">
-    <button class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer">
+    <button
+      onClick={() => {}}
+      disabled={props.disabled}
+      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+    >
       <i class="text-stone-200 icon-[material-symbols--sleep-rounded] w-[20px]"></i>
     </button>
 
     <button
-      onClick={() => invoke("quit")}
-      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer"
+      onClick={() => invoke("poweroff")}
+      disabled={props.disabled}
+      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
     >
       <i class="text-stone-200 icon-[mingcute--power-fill] w-[20px]"></i>
     </button>

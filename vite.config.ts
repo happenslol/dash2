@@ -9,8 +9,7 @@ export default defineConfig(async () => ({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        login: resolve(__dirname, "login.html"),
+        login: resolve(__dirname, "./src/login/index.html"),
       },
     },
   },
