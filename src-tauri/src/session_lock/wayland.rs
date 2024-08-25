@@ -11,7 +11,10 @@ use once_cell::sync::Lazy;
 use smithay_client_toolkit::{
   output::{OutputHandler, OutputState},
   reexports::{
-    calloop::{channel::Channel, EventLoop, LoopHandle},
+    calloop::{
+      channel::{Channel, Sender},
+      EventLoop, LoopHandle,
+    },
     calloop_wayland_source::WaylandSource,
   },
   registry::{ProvidesRegistryState, RegistryState},
@@ -33,16 +36,10 @@ use wayland_client::{
 };
 use webkit2gtk::WebViewExt;
 
-use crate::util::{get_wl_surface, get_wl_window, rand_string};
-
-const PRIMARY_PRIORITY: &[&str] = &[
-  "WAYLAND-1",
-  "WAYLAND-2",
-  "WAYLAND-3",
-  "DP-1",
-  "DP-2",
-  "DP-3",
-];
+use crate::{
+  config::Config,
+  util::{get_wl_surface, get_wl_window, rand_string},
+};
 
 #[derive(Clone)]
 struct TauriLockSurface {
@@ -54,6 +51,7 @@ struct TauriLockSurface {
 }
 
 struct State {
+  config: Config,
   running: bool,
   loop_handle: LoopHandle<'static, Self>,
   conn: Connection,
@@ -63,11 +61,14 @@ struct State {
   registry_state: RegistryState,
   output_state: OutputState,
   lock_surfaces: Arc<Mutex<Vec<TauriLockSurface>>>,
+  window_ready_tx: Sender<()>,
 }
 
 pub fn lock_session(
+  config: Config,
   app_handle: &tauri::AppHandle,
   unlock_rx: Channel<()>,
+  window_ready_tx: Sender<()>,
   window_ready_rx: Channel<()>,
 ) -> Result<JoinHandle<()>> {
   let display = gdk::Display::default().ok_or(anyhow::anyhow!("failed to get default display"))?;
@@ -102,7 +103,7 @@ pub fn lock_session(
     }
 
     if let Err(err) = loop_handle.insert_source(window_ready_rx, |_, _, app_data| {
-      assign_primary(&app_data.lock_surfaces).unwrap_or_else(|err| {
+      app_data.assign_primary().unwrap_or_else(|err| {
         eprintln!("failed to assign primary: {err}");
       })
     }) {
@@ -112,6 +113,7 @@ pub fn lock_session(
     }
 
     let mut wl_state = State {
+      config,
       running: true,
       tauri_app: app_handle.clone(),
       output_state: OutputState::new(&globals, &qh),
@@ -121,6 +123,7 @@ pub fn lock_session(
       session_lock_state: SessionLockState::new(&globals, &qh),
       session_lock: None,
       lock_surfaces: Arc::new(Mutex::new(Vec::new())),
+      window_ready_tx,
     };
 
     let session_lock = match wl_state.session_lock_state.lock(&qh) {
@@ -161,47 +164,6 @@ pub fn lock_session(
   Ok(thread_handle)
 }
 
-fn assign_primary(surfaces: &Arc<Mutex<Vec<TauriLockSurface>>>) -> Result<()> {
-  let surfaces = surfaces
-    .lock()
-    .map_err(|_| anyhow::anyhow!("failed to lock"))?;
-
-  if surfaces.is_empty() {
-    return Ok(());
-  }
-
-  let primary = PRIMARY_PRIORITY
-    .iter()
-    .find_map(|name| {
-      surfaces
-        .iter()
-        .find(|s| s.is_active && &s.output_name == name)
-    })
-    .unwrap_or(&surfaces[0]);
-
-  surfaces
-    .iter()
-    .filter(|s| s.is_active && s.output != primary.output)
-    .for_each(|s| {
-      s.window
-        .emit_to(s.window.label(), "is-primary", false)
-        .unwrap_or_else(|err| {
-          eprintln!("failed to emit is-primary: {err}");
-        });
-    });
-
-  primary
-    .window
-    .emit_to(primary.window.label(), "is-primary", true)
-    .unwrap_or_else(|err| {
-      eprintln!("failed to emit is-primary: {err}");
-    });
-
-  primary.window.gtk_window()?.grab_focus();
-
-  Ok(())
-}
-
 static WINDOW_TITLE_RE: Lazy<regex::Regex> =
   Lazy::new(|| regex::Regex::new(r"[^a-zA-Z0-9]").expect("failed to compile regex"));
 
@@ -214,6 +176,50 @@ fn get_output_window_label(output: &WlOutput) -> String {
 }
 
 impl State {
+  fn assign_primary(&mut self) -> Result<()> {
+    let surfaces = self
+      .lock_surfaces
+      .lock()
+      .map_err(|_| anyhow::anyhow!("failed to lock"))?;
+
+    if surfaces.is_empty() {
+      return Ok(());
+    }
+
+    let primary = self
+      .config
+      .primary_display
+      .iter()
+      .find_map(|name| {
+        surfaces
+          .iter()
+          .find(|s| s.is_active && &s.output_name == name)
+      })
+      .unwrap_or(&surfaces[0]);
+
+    surfaces
+      .iter()
+      .filter(|s| s.is_active && s.output != primary.output)
+      .for_each(|s| {
+        s.window
+          .emit_to(s.window.label(), "is-primary", false)
+          .unwrap_or_else(|err| {
+            eprintln!("failed to emit is-primary: {err}");
+          });
+      });
+
+    primary
+      .window
+      .emit_to(primary.window.label(), "is-primary", true)
+      .unwrap_or_else(|err| {
+        eprintln!("failed to emit is-primary: {err}");
+      });
+
+    primary.window.gtk_window()?.grab_focus();
+
+    Ok(())
+  }
+
   fn get_output_name(&mut self, output: &WlOutput) -> Result<String> {
     let Some(info) = self.output_state().info(output) else {
       return Ok(rand_string());
@@ -305,13 +311,13 @@ impl State {
     });
 
     let ev_window = window.clone();
-    let surfaces = self.lock_surfaces.clone();
+    let window_ready_tx = self.window_ready_tx.clone();
     window.listen("ready", move |ev| {
-      ev_window.unlisten(ev.id());
       // ev_window.open_devtools();
-      assign_primary(&surfaces).unwrap_or_else(|err| {
-        eprintln!("failed to assign primary: {err}");
-      })
+      ev_window.unlisten(ev.id());
+      window_ready_tx.send(()).unwrap_or_else(|err| {
+        eprintln!("failed to send window ready: {err}");
+      });
     });
 
     let conn = self.conn.clone();
@@ -374,7 +380,7 @@ impl OutputHandler for State {
     output: wl_output::WlOutput,
   ) {
     if self.refresh_output_name(&output) {
-      assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+      self.assign_primary().unwrap_or_else(|err| {
         eprintln!("failed to assign primary: {err}");
       });
       return;
@@ -393,7 +399,7 @@ impl OutputHandler for State {
   ) {
     self.refresh_output_name(&output);
 
-    assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+    self.assign_primary().unwrap_or_else(|err| {
       eprintln!("failed to assign primary: {err}");
     });
   }
@@ -423,7 +429,7 @@ impl OutputHandler for State {
       };
     }
 
-    assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+    self.assign_primary().unwrap_or_else(|err| {
       eprintln!("failed to assign primary: {err}");
     });
   }
@@ -431,7 +437,7 @@ impl OutputHandler for State {
 
 impl SessionLockHandler for State {
   fn locked(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _session_lock: SessionLock) {
-    assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+    self.assign_primary().unwrap_or_else(|err| {
       eprintln!("failed to assign primary: {err}");
     })
   }
@@ -470,7 +476,7 @@ impl SessionLockHandler for State {
       }
     }
 
-    assign_primary(&self.lock_surfaces).unwrap_or_else(|err| {
+    self.assign_primary().unwrap_or_else(|err| {
       eprintln!("failed to assign primary: {err}");
     })
   }

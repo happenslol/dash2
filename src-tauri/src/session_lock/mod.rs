@@ -4,6 +4,7 @@ use tauri::{Emitter, Manager};
 
 use crate::{
   battery::{BatteryState, BatterySubscription},
+  config::Config,
   pam,
   power::Power,
   util::get_current_username,
@@ -11,7 +12,15 @@ use crate::{
 
 mod wayland;
 
-pub fn run() -> Result<()> {
+struct TauriState<'a> {
+  config: Config,
+  unlock_tx: Sender<()>,
+  window_ready_tx: Sender<()>,
+  battery: BatterySubscription<'a>,
+  power: Power,
+}
+
+pub fn run(config: Config) -> Result<()> {
   let rt = tokio::runtime::Runtime::new()?;
   rt.block_on(async {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
@@ -34,13 +43,20 @@ pub fn run() -> Result<()> {
     let (unlock_tx, unlock_rx) = channel();
     let (window_ready_tx, window_ready_rx) = channel();
     app.manage(TauriState {
+      config: config.clone(),
+      window_ready_tx: window_ready_tx.clone(),
       unlock_tx,
-      window_ready_tx,
       battery,
       power,
     });
 
-    let lock_handle = wayland::lock_session(app.handle(), unlock_rx, window_ready_rx)?;
+    let lock_handle = wayland::lock_session(
+      config,
+      app.handle(),
+      unlock_rx,
+      window_ready_tx,
+      window_ready_rx,
+    )?;
 
     app.run(|_, _| {});
     lock_handle
@@ -49,13 +65,6 @@ pub fn run() -> Result<()> {
 
     Ok(())
   })
-}
-
-struct TauriState<'a> {
-  unlock_tx: Sender<()>,
-  window_ready_tx: Sender<()>,
-  battery: BatterySubscription<'a>,
-  power: Power,
 }
 
 #[tauri::command]
