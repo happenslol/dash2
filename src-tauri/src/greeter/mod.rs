@@ -1,6 +1,7 @@
 use anyhow::Result;
 use gdk::prelude::*;
 use tauri::{Emitter, Manager};
+use tokio::sync::Mutex;
 
 use crate::{
   battery::{BatteryState, BatterySubscription},
@@ -11,8 +12,13 @@ use crate::{
   util::rand_string,
 };
 
+use self::greetd::GreetdClient;
+
+mod greetd;
+
 struct TauriState<'a> {
   config: Config,
+  greetd: Mutex<GreetdClient>,
   battery: BatterySubscription<'a>,
   hyprland: HyprlandConn,
   power: Power,
@@ -30,6 +36,7 @@ pub fn greet(config: Config) -> Result<()> {
         get_battery_state,
         window_ready,
         quit,
+        submit_password,
       ])
       .build(tauri::generate_context!())?;
 
@@ -41,9 +48,12 @@ pub fn greet(config: Config) -> Result<()> {
     let zbus_conn = zbus::Connection::system().await?;
     let battery = BatterySubscription::new(app.handle(), &zbus_conn).await?;
     let power = Power::new(zbus_conn);
+    let greetd_client = Mutex::new(greetd::GreetdClient::new(config.clone()).await?);
+
     app.manage(TauriState {
       config: config.clone(),
       hyprland: hyprland_conn,
+      greetd: greetd_client,
       battery,
       power,
     });
@@ -184,4 +194,22 @@ async fn quit(app: tauri::AppHandle) {
 async fn get_battery_state(app: tauri::AppHandle) -> Option<BatteryState> {
   let state = app.state::<TauriState>();
   state.battery.get_state().await.unwrap_or(None)
+}
+
+#[tauri::command]
+async fn submit_password(app: tauri::AppHandle, value: String) {
+  let state = app.state::<TauriState>();
+  let mut greetd = state.greetd.lock().await;
+
+  match greetd.authenticate(value).await {
+    Ok(_) => app.exit(0),
+    Err(err) => {
+      eprintln!("failed to authenticate: {err}");
+      app
+        .emit("password-error", err.to_string())
+        .unwrap_or_else(|err| {
+          eprintln!("failed to emit password-error: {err}");
+        });
+    }
+  }
 }
