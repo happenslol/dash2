@@ -4,7 +4,7 @@ const iconifyPlugin = addDynamicIconSelectors()
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./*.html", "./src/**/*.(ts|tsx)"],
+  content: ["./src/**/*.(ts|tsx|html)"],
   theme: { extend: {} },
   plugins: [iconifyPlugin],
 }

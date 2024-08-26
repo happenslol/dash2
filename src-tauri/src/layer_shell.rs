@@ -4,7 +4,7 @@ use gtk::prelude::*;
 use gtk_layer_shell::LayerShell;
 use webkit2gtk::WebViewExt;
 
-fn create_overlay_window(
+pub fn create_overlay_window(
   app: &tauri::AppHandle,
   label: &str,
   url: &str,

@@ -100,10 +100,11 @@ export const Login = () => {
               />
 
               <button
+                type="button"
                 onClick={() => submit(passwordField.value)}
                 disabled={isCheckingPassword()}
                 class={clsx(
-                  "absolute right-[-40px] rounded-full border flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
+                  "absolute right-[-40px] rounded-full border-2 flex items-center justify-center h-[32px] w-[32px] cursor-pointer",
                   isCheckingPassword() && "opacity-50",
                   !hasFingerprintError() && "border-stone-400",
                   hasFingerprintError() && "border-red-500"
@@ -111,12 +112,12 @@ export const Login = () => {
               >
                 <i
                   class={clsx(
-                    "text-stone-200 text-2xl",
+                    "text-stone-200",
                     isCheckingPassword() &&
-                      "icon-[ph--circle-notch] animate-spin",
+                      "icon-[ph--circle-notch] animate-spin text-2xl",
                     isCheckingFingerprint() &&
-                      "icon-[ph--fingerprint] animate-pulse",
-                    !isLoading() && "icon-[mdi--arrow-right]"
+                      "icon-[ph--fingerprint] animate-pulse text-2xl",
+                    !isLoading() && "icon-[ph--arrow-right-bold] text-xl"
                   )}
                 />
               </button>
@@ -168,27 +169,46 @@ const getChargeClass = (percentage: number) => {
   return "icon-[fa--battery-full]"
 }
 
+type PowerIconButtonProps = {
+  icon: string
+  onClick?: () => void
+  disabled?: boolean
+}
+
+const PowerIconButton = (props: PowerIconButtonProps) => (
+  <button
+    type="button"
+    onClick={props.onClick}
+    disabled={props.disabled}
+    class="bg-stone-700 rounded-full w-12 h-12 flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+  >
+    <i class={clsx("text-stone-200 text-2xl", props.icon)}></i>
+  </button>
+)
+
 type PowerControlsProps = {
   disabled?: boolean
 }
 
 const PowerControls = (props: PowerControlsProps) => (
-  <div class="flex items-center justify-center gap-2">
-    <button
+  <div class="flex items-center justify-center gap-4">
+    <PowerIconButton
+      icon="icon-[ph--moon-stars-bold]"
       onClick={() => invoke("suspend")}
       disabled={props.disabled}
-      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
-    >
-      <i class="text-stone-200 icon-[material-symbols--sleep-rounded] w-[20px]"></i>
-    </button>
+    />
 
-    <button
+    <PowerIconButton
+      icon="icon-[ph--arrow-clockwise-bold]"
+      onClick={() => invoke("suspend")}
+      disabled={props.disabled}
+    />
+
+    <PowerIconButton
+      icon="icon-[ph--power-bold]"
       onClick={() => invoke("poweroff")}
       disabled={props.disabled}
-      class="bg-stone-700 rounded-full w-[40px] h-[40px] flex items-center justify-center hover:bg-stone-900 transition cursor-pointer disabled:pointer-events-none disabled:opacity-50"
-    >
-      <i class="text-stone-200 icon-[mingcute--power-fill] w-[20px]"></i>
-    </button>
+    />
   </div>
 )
 

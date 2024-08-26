@@ -33,8 +33,7 @@ pub fn run(config: Config) -> Result<()> {
         get_battery_state,
         window_ready,
       ])
-      .build(tauri::generate_context!())
-      .expect("error while building tauri application");
+      .build(tauri::generate_context!())?;
 
     let zbus_conn = zbus::Connection::system().await?;
     let battery = BatterySubscription::new(app.handle(), &zbus_conn).await?;

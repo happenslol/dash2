@@ -7,7 +7,6 @@ use std::{
 use anyhow::Result;
 use gdk::{glib::translate::ToGlibPtr, prelude::*};
 use gtk::traits::WidgetExt;
-use once_cell::sync::Lazy;
 use smithay_client_toolkit::{
   output::{OutputHandler, OutputState},
   reexports::{
@@ -32,13 +31,13 @@ use wayland_client::{
     wl_buffer,
     wl_output::{self, WlOutput},
   },
-  Connection, Proxy, QueueHandle,
+  Connection, QueueHandle,
 };
 use webkit2gtk::WebViewExt;
 
 use crate::{
   config::Config,
-  util::{get_wl_surface, get_wl_window, rand_string},
+  util::{get_output_window_label, get_wl_surface, get_wl_window, rand_string},
 };
 
 #[derive(Clone)]
@@ -162,17 +161,6 @@ pub fn lock_session(
   });
 
   Ok(thread_handle)
-}
-
-static WINDOW_TITLE_RE: Lazy<regex::Regex> =
-  Lazy::new(|| regex::Regex::new(r"[^a-zA-Z0-9]").expect("failed to compile regex"));
-
-fn get_output_window_label(output: &WlOutput) -> String {
-  let sanitized = WINDOW_TITLE_RE
-    .replace_all(&output.id().to_string(), "")
-    .to_string();
-
-  format!("lock-{}", sanitized)
 }
 
 impl State {

@@ -12,8 +12,10 @@ pub mod layer_shell;
 pub mod pam;
 pub mod power;
 pub mod scrambler;
-mod session_lock;
 pub mod util;
+
+mod greeter;
+mod session_lock;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -29,16 +31,22 @@ enum Command {
   /// Lock the session
   Lock,
 
+  /// Start the greeter
+  Greet,
+
   /// Print the configuration
   PrintConfig,
 }
 
+// TODO: ctrl-c handler
+// TODO: tracing
 fn main() -> Result<()> {
   let args = Args::parse();
   let config = config::load(&args.config)?;
 
   match args.command {
     Command::Lock => session_lock::run(config),
+    Command::Greet => greeter::greet(config),
     Command::PrintConfig => {
       println!("{:#?}", config);
       Ok(())

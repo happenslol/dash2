@@ -1,9 +1,10 @@
 use anyhow::Result;
 use gdk::{glib::translate::ToGlibPtr, prelude::*};
 use gtk::{prelude::*, Widget};
+use once_cell::sync::Lazy;
 use rand::{distributions::Alphanumeric, Rng};
 use wayland_backend::client::ObjectId;
-use wayland_client::{protocol::wl_surface::WlSurface, Connection, Proxy};
+use wayland_client::{protocol::{wl_surface::WlSurface, wl_output::WlOutput}, Connection, Proxy};
 
 pub fn get_current_username() -> Option<String> {
   let uid = unsafe { libc::getuid() };
@@ -63,3 +64,15 @@ pub fn get_wl_surface(
 
   Ok(WlSurface::from_id(conn, surface)?)
 }
+
+static WINDOW_TITLE_RE: Lazy<regex::Regex> =
+  Lazy::new(|| regex::Regex::new(r"[^a-zA-Z0-9]").expect("failed to compile regex"));
+
+pub fn get_output_window_label(output: &WlOutput) -> String {
+  let sanitized = WINDOW_TITLE_RE
+    .replace_all(&output.id().to_string(), "")
+    .to_string();
+
+  format!("lock-{}", sanitized)
+}
+
