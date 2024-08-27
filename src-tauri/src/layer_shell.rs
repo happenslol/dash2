@@ -37,6 +37,7 @@ pub fn create_overlay_window(
 
   window.with_webview(|webview| {
     let webview = webview.inner();
+    webview.connect_context_menu(|_, _, _, _| true);
     webview.set_background_color(&gdk::RGBA::new(0., 0., 0., 0.));
   })?;
 
