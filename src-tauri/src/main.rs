@@ -32,7 +32,11 @@ enum Command {
   Lock,
 
   /// Start the greeter
-  Greet,
+  Greet {
+    /// Run in demo mode
+    #[arg(long)]
+    demo: bool,
+  },
 
   /// Print the configuration
   PrintConfig,
@@ -46,7 +50,7 @@ fn main() -> Result<()> {
 
   match args.command {
     Command::Lock => session_lock::run(config),
-    Command::Greet => greeter::greet(config),
+    Command::Greet { demo } => greeter::greet(config, demo),
     Command::PrintConfig => {
       println!("{:#?}", config);
       Ok(())

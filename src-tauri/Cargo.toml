@@ -14,10 +14,10 @@ tauri-plugin-shell = "2.0.0-rc"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0.75"
-gtk-layer-shell = "0.8.1"
-gtk = "0.18.1"
-gdk = "0.18.0"
-webkit2gtk = "2.0.1"
+gtk-layer-shell = { version = "0.8.1", features = ["v0_6"] }
+gtk = { version = "0.18.1", features = ["v3_24"] }
+gdk = { version = "0.18.0", features = ["v3_24"] }
+webkit2gtk = { version = "2.0.1", features = ["v2_38"] }
 gdkwayland = "0.18.0"
 gdkwayland-sys = "0.18.0"
 tokio = { version = "1.39.3", features = ["full"] }
