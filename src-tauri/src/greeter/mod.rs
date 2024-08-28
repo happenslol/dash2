@@ -1,5 +1,7 @@
 use anyhow::Result;
 use gdk::prelude::*;
+use gtk::prelude::*;
+use gtk_layer_shell::LayerShell;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 
@@ -146,9 +148,20 @@ async fn assign_primary(config: Config, app: &tauri::AppHandle) -> Result<()> {
         .and_then(|monitor| unsafe { monitor.data::<String>("window-label") })
       {
         let window_label = unsafe { window_label.as_ref() }.clone();
+        let is_primary = index == primary_index as i32;
+        let window = app_handle.get_webview_window(&window_label).unwrap();
         app_handle
-          .emit_to(&window_label, "is-primary", index == primary_index as i32)
+          .emit_to(&window_label, "is-primary", is_primary)
           .unwrap();
+
+        if let Ok(gtk_window) = window.gtk_window() {
+          if is_primary {
+            gtk_window.set_keyboard_mode(gtk_layer_shell::KeyboardMode::Exclusive);
+            gtk_window.grab_focus();
+          } else {
+            gtk_window.set_keyboard_mode(gtk_layer_shell::KeyboardMode::None);
+          }
+        }
       }
     }
   })?;

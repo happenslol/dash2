@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Result;
 use gdk::{glib::translate::ToGlibPtr, prelude::*};
-use gtk::traits::WidgetExt;
+use gtk::prelude::*;
 use smithay_client_toolkit::{
   output::{OutputHandler, OutputState},
   reexports::{
