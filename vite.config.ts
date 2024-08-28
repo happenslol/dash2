@@ -11,6 +11,7 @@ export default defineConfig(async () => ({
     rollupOptions: {
       input: {
         login: resolve(__dirname, "./src/login/index.html"),
+        control: resolve(__dirname, "./src/control/index.html"),
       },
     },
   },

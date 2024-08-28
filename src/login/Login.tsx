@@ -1,4 +1,3 @@
-/* @refresh reload */
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"

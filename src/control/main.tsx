@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web"
-import { Login } from "./Login"
+import { Control } from "./Control"
 
 const root = document.getElementById("root")
 
-render(() => <Login />, root!)
+render(() => <Control />, root!)
