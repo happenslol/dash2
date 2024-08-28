@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc, collections::HashMap};
 
 use anyhow::Result;
 use serde::Deserialize;
+use tracing::info;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ConfigValues {
@@ -24,7 +25,7 @@ pub fn load(path: &Option<PathBuf>) -> Result<Config> {
   if let Some(path) = path {
     let raw = std::fs::read_to_string(path)?;
     let parsed: ConfigValues = toml::from_str(&raw)?;
-    println!("Using provided config file: {}", path.to_string_lossy());
+    info!("Using provided config file: {}", path.to_string_lossy());
     return Ok(Arc::new(parsed));
   }
 
@@ -33,7 +34,7 @@ pub fn load(path: &Option<PathBuf>) -> Result<Config> {
     if path.exists() {
       let raw = std::fs::read_to_string(&path)?;
       let parsed: ConfigValues = toml::from_str(&raw)?;
-      println!("Using config file: {}", path.to_string_lossy());
+      info!("Using config file: {}", path.to_string_lossy());
       return Ok(Arc::new(parsed));
     }
   }
@@ -42,7 +43,7 @@ pub fn load(path: &Option<PathBuf>) -> Result<Config> {
   if etc_path.exists() {
     let raw = std::fs::read_to_string(&etc_path)?;
     let parsed: ConfigValues = toml::from_str(&raw)?;
-    println!("Using config file: {}", etc_path.to_string_lossy());
+    info!("Using config file: {}", etc_path.to_string_lossy());
     return Ok(Arc::new(parsed));
   }
 

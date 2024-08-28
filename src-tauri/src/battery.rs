@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use serde::Serialize;
 use tauri::Emitter;
+use tracing::error;
 
 #[derive(Copy, Clone, Serialize)]
 pub struct BatteryState {
@@ -31,9 +32,9 @@ impl<'a> BatterySubscription<'a> {
             Ok(percentage) => handle
               .emit("battery-percentage", percentage)
               .unwrap_or_else(|e| {
-                eprintln!("Failed to emit battery percentage: {}", e);
+                error!("Failed to emit battery percentage: {}", e);
               }),
-            Err(e) => eprintln!("Failed to get battery percentage: {}", e),
+            Err(e) => error!("Failed to get battery percentage: {}", e),
           }
         }
       });
@@ -47,9 +48,9 @@ impl<'a> BatterySubscription<'a> {
             Ok(psu_connected) => handle
               .emit("psu-connected", psu_connected)
               .unwrap_or_else(|e| {
-                eprintln!("Failed to emit psu connected: {}", e);
+                error!("Failed to emit psu connected: {}", e);
               }),
-            Err(e) => eprintln!("Failed to get psu connected: {}", e),
+            Err(e) => error!("Failed to get psu connected: {}", e),
           }
         }
       });

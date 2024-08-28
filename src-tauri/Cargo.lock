@@ -952,6 +952,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml 0.8.19",
+ "tracing",
+ "tracing-subscriber",
  "upower_dbus",
  "wayland-backend 0.3.6",
  "wayland-client 0.31.5",

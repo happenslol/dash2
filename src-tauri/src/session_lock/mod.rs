@@ -1,6 +1,7 @@
 use anyhow::Result;
 use smithay_client_toolkit::reexports::calloop::channel::{channel, Sender};
 use tauri::{Emitter, Manager};
+use tracing::error;
 
 use crate::{
   battery::{BatteryState, BatterySubscription},
@@ -70,7 +71,7 @@ pub fn run(config: Config) -> Result<()> {
 async fn window_ready(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.window_ready_tx.send(()).unwrap_or_else(|err| {
-    eprintln!("failed to send window ready signal: {err}");
+    error!("failed to send window ready signal: {err}");
   });
 }
 
@@ -78,7 +79,7 @@ async fn window_ready(app: tauri::AppHandle) {
 async fn poweroff(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.poweroff().await.unwrap_or_else(|err| {
-    eprintln!("failed to poweroff: {err}");
+    error!("failed to poweroff: {err}");
   });
 }
 
@@ -86,7 +87,7 @@ async fn poweroff(app: tauri::AppHandle) {
 async fn reboot(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.reboot().await.unwrap_or_else(|err| {
-    eprintln!("failed to poweroff: {err}");
+    error!("failed to poweroff: {err}");
   });
 }
 
@@ -94,7 +95,7 @@ async fn reboot(app: tauri::AppHandle) {
 async fn suspend(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.suspend().await.unwrap_or_else(|err| {
-    eprintln!("failed to suspend: {err}");
+    error!("failed to suspend: {err}");
   });
 }
 
@@ -109,7 +110,7 @@ async fn submit_password(app: tauri::AppHandle, window: tauri::WebviewWindow, va
   let Some(username) = get_current_username() else {
     window
       .emit("password-error", "username not available")
-      .unwrap_or_else(|err| eprintln!("failed to emit: {err}"));
+      .unwrap_or_else(|err| error!("failed to emit: {err}"));
     return;
   };
 
@@ -118,21 +119,21 @@ async fn submit_password(app: tauri::AppHandle, window: tauri::WebviewWindow, va
     let Ok(mut pam) = pam::session::PamSession::start("dash2", &username, conv) else {
       window
         .emit("password-error", "failed to start pam session")
-        .unwrap_or_else(|err| eprintln!("failed to emit: {err}"));
+        .unwrap_or_else(|err| error!("failed to emit: {err}"));
       return false;
     };
 
     if let Err(err) = pam.authenticate(pam_sys::PamFlag::NONE) {
       window
         .emit("password-error", err.to_string())
-        .unwrap_or_else(|err| eprintln!("failed to emit: {err}"));
+        .unwrap_or_else(|err| error!("failed to emit: {err}"));
       return false;
     };
 
     if let Err(err) = pam.setcred(pam_sys::PamFlag::REFRESH_CRED) {
       window
         .emit("password-error", err.to_string())
-        .unwrap_or_else(|err| eprintln!("failed to emit: {err}"));
+        .unwrap_or_else(|err| error!("failed to emit: {err}"));
       return false;
     };
 
@@ -140,7 +141,7 @@ async fn submit_password(app: tauri::AppHandle, window: tauri::WebviewWindow, va
   })
   .await
   .unwrap_or_else(|err| {
-    eprintln!("failed to authenticate: {err}");
+    error!("failed to authenticate: {err}");
     false
   });
 
@@ -153,6 +154,6 @@ async fn submit_password(app: tauri::AppHandle, window: tauri::WebviewWindow, va
     .unlock_tx
     .send(())
     .unwrap_or_else(|err| {
-      eprintln!("failed to send unlock signal: {err}");
+      error!("failed to send unlock signal: {err}");
     })
 }

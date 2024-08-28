@@ -15,6 +15,7 @@ pub mod scrambler;
 pub mod util;
 
 mod greeter;
+mod panels;
 mod session_lock;
 
 #[derive(Debug, Parser)]
@@ -38,19 +39,24 @@ enum Command {
     demo: bool,
   },
 
+  /// Start the desktop environment
+  Run,
+
   /// Print the configuration
   PrintConfig,
 }
 
 // TODO: ctrl-c handler
-// TODO: tracing
 fn main() -> Result<()> {
+  tracing_subscriber::fmt::init();
+
   let args = Args::parse();
   let config = config::load(&args.config)?;
 
   match args.command {
     Command::Lock => session_lock::run(config),
     Command::Greet { demo } => greeter::greet(config, demo),
+    Command::Run => panels::run(config),
     Command::PrintConfig => {
       println!("{:#?}", config);
       Ok(())

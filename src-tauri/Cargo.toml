@@ -37,6 +37,8 @@ clap = { version = "4.5.16", features = ["derive"] }
 toml = "0.8.19"
 dirs = "5.0.1"
 greetd_ipc = { version = "0.10.3", features = ["tokio-codec"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 # Transitive dependencies required for the flake build
 hyper-tls = "0.6.0"

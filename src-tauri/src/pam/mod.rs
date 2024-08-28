@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use thiserror::Error as ThisError;
 
 use pam_sys::PamReturnCode;
+use tracing::info;
 
 #[derive(Debug, ThisError)]
 pub enum PamError {
@@ -54,12 +55,12 @@ impl converse::Converse for PasswordConv {
   }
 
   fn info(&self, msg: &str) -> Result<(), ()> {
-    eprintln!("pam info: {msg}");
+    info!("pam info: {msg}");
     Err(())
   }
 
   fn error(&self, msg: &str) -> Result<(), ()> {
-    eprintln!("pam error: {msg}");
+    info!("pam error: {msg}");
     Err(())
   }
 }

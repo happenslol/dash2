@@ -24,6 +24,7 @@ use smithay_client_toolkit::{
   },
 };
 use tauri::{Emitter, Listener};
+use tracing::error;
 use wayland_backend::client::Backend;
 use wayland_client::{
   globals::registry_queue_init,
@@ -87,7 +88,7 @@ pub fn lock_session(
     let mut event_loop: EventLoop<State> = match EventLoop::try_new() {
       Ok(event_loop) => event_loop,
       Err(err) => {
-        eprintln!("Failed to create event loop: {err}");
+        error!("Failed to create event loop: {err}");
         app_handle.exit(1);
         return;
       }
@@ -96,17 +97,17 @@ pub fn lock_session(
     let loop_handle = event_loop.handle();
 
     if let Err(err) = loop_handle.insert_source(unlock_rx, |_, _, app_data| app_data.unlock()) {
-      eprintln!("failed to insert unlock source: {err}");
+      error!("failed to insert unlock source: {err}");
       app_handle.exit(1);
       return;
     }
 
     if let Err(err) = loop_handle.insert_source(window_ready_rx, |_, _, app_data| {
       app_data.assign_primary().unwrap_or_else(|err| {
-        eprintln!("failed to assign primary: {err}");
+        error!("failed to assign primary: {err}");
       })
     }) {
-      eprintln!("failed to insert window ready source: {err}");
+      error!("failed to insert window ready source: {err}");
       app_handle.exit(1);
       return;
     }
@@ -128,14 +129,14 @@ pub fn lock_session(
     let session_lock = match wl_state.session_lock_state.lock(&qh) {
       Ok(session_lock) => session_lock,
       Err(err) => {
-        eprintln!("Compositor does not support ext_session_lock_v1: {err}");
+        error!("Compositor does not support ext_session_lock_v1: {err}");
         app_handle.exit(1);
         return;
       }
     };
 
     if let Err(err) = WaylandSource::new(wl_conn.clone(), event_queue).insert(event_loop.handle()) {
-      eprintln!("failed to insert wayland source: {err}");
+      error!("failed to insert wayland source: {err}");
       app_handle.exit(1);
       return;
     }
@@ -145,7 +146,7 @@ pub fn lock_session(
       wl_state
         .create_lock_surface(&qh, &output)
         .unwrap_or_else(|err| {
-          eprintln!("failed to create lock surface: {err}");
+          error!("failed to create lock surface: {err}");
         });
     }
 
@@ -153,7 +154,7 @@ pub fn lock_session(
       event_loop
         .dispatch(Duration::from_millis(16), &mut wl_state)
         .unwrap_or_else(|err| {
-          eprintln!("failed to dispatch event loop: {err}");
+          error!("failed to dispatch event loop: {err}");
         });
     }
 
@@ -192,7 +193,7 @@ impl State {
         s.window
           .emit_to(s.window.label(), "is-primary", false)
           .unwrap_or_else(|err| {
-            eprintln!("failed to emit is-primary: {err}");
+            error!("failed to emit is-primary: {err}");
           });
       });
 
@@ -200,7 +201,7 @@ impl State {
       .window
       .emit_to(primary.window.label(), "is-primary", true)
       .unwrap_or_else(|err| {
-        eprintln!("failed to emit is-primary: {err}");
+        error!("failed to emit is-primary: {err}");
       });
 
     primary.window.gtk_window()?.grab_focus();
@@ -219,7 +220,7 @@ impl State {
 
   fn unlock(&mut self) {
     let Some(session_lock) = self.session_lock.take() else {
-      eprintln!("session lock not initialized");
+      error!("session lock not initialized");
       return;
     };
 
@@ -227,7 +228,7 @@ impl State {
 
     // Sync connection to make sure compostor receives destroy
     if let Err(err) = self.conn.roundtrip() {
-      eprintln!("failed to roundtrip after unlocking session: {err}");
+      error!("failed to roundtrip after unlocking session: {err}");
     };
 
     // Then we can exit
@@ -239,7 +240,7 @@ impl State {
   fn refresh_output_name(&mut self, output: &wl_output::WlOutput) -> bool {
     let surfaces = self.lock_surfaces.clone();
     let Ok(mut surfaces) = surfaces.lock() else {
-      eprintln!("failed to lock surfaces for new output");
+      error!("failed to lock surfaces for new output");
       return true;
     };
 
@@ -247,7 +248,7 @@ impl State {
       let output_name = match self.get_output_name(output) {
         Ok(output_name) => output_name,
         Err(err) => {
-          eprintln!("failed to get output name: {err}");
+          error!("failed to get output name: {err}");
           return true;
         }
       };
@@ -305,7 +306,7 @@ impl State {
       // ev_window.open_devtools();
       ev_window.unlisten(ev.id());
       window_ready_tx.send(()).unwrap_or_else(|err| {
-        eprintln!("failed to send window ready: {err}");
+        error!("failed to send window ready: {err}");
       });
     });
 
@@ -370,13 +371,13 @@ impl OutputHandler for State {
   ) {
     if self.refresh_output_name(&output) {
       self.assign_primary().unwrap_or_else(|err| {
-        eprintln!("failed to assign primary: {err}");
+        error!("failed to assign primary: {err}");
       });
       return;
     }
 
     self.create_lock_surface(qh, &output).unwrap_or_else(|err| {
-      eprintln!("failed to create lock surface: {err}");
+      error!("failed to create lock surface: {err}");
     })
   }
 
@@ -389,7 +390,7 @@ impl OutputHandler for State {
     self.refresh_output_name(&output);
 
     self.assign_primary().unwrap_or_else(|err| {
-      eprintln!("failed to assign primary: {err}");
+      error!("failed to assign primary: {err}");
     });
   }
 
@@ -401,25 +402,25 @@ impl OutputHandler for State {
   ) {
     {
       let Ok(mut surfaces) = self.lock_surfaces.lock() else {
-        eprintln!("failed to lock surfaces for destroyed output");
+        error!("failed to lock surfaces for destroyed output");
         return;
       };
 
       let Some(found) = surfaces.iter_mut().find(|s| s.output == output) else {
-        eprintln!("no surface found for destroyed output");
+        error!("no surface found for destroyed output");
         return;
       };
 
       found.is_active = false;
 
       let Ok(_) = found.window.close() else {
-        eprintln!("failed to close window for destroyed output");
+        error!("failed to close window for destroyed output");
         return;
       };
     }
 
     self.assign_primary().unwrap_or_else(|err| {
-      eprintln!("failed to assign primary: {err}");
+      error!("failed to assign primary: {err}");
     });
   }
 }
@@ -427,7 +428,7 @@ impl OutputHandler for State {
 impl SessionLockHandler for State {
   fn locked(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _session_lock: SessionLock) {
     self.assign_primary().unwrap_or_else(|err| {
-      eprintln!("failed to assign primary: {err}");
+      error!("failed to assign primary: {err}");
     })
   }
 
@@ -445,7 +446,7 @@ impl SessionLockHandler for State {
   ) {
     {
       let Ok(surfaces) = self.lock_surfaces.lock() else {
-        eprintln!("failed to lock surfaces for configure");
+        error!("failed to lock surfaces for configure");
         return;
       };
 
@@ -460,13 +461,13 @@ impl SessionLockHandler for State {
         }
 
         found.window.show().unwrap_or_else(|err| {
-          eprintln!("failed to show window: {err}");
+          error!("failed to show window: {err}");
         });
       }
     }
 
     self.assign_primary().unwrap_or_else(|err| {
-      eprintln!("failed to assign primary: {err}");
+      error!("failed to assign primary: {err}");
     })
   }
 }

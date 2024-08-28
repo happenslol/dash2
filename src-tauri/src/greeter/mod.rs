@@ -4,6 +4,7 @@ use gtk::prelude::*;
 use gtk_layer_shell::LayerShell;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
+use tracing::error;
 
 use crate::{
   battery::{BatteryState, BatterySubscription},
@@ -83,7 +84,7 @@ pub fn greet(config: Config, demo: bool) -> Result<()> {
         assign_primary(config.clone(), &assign_app_handle)
           .await
           .unwrap_or_else(|err| {
-            eprintln!("failed to assign primary display: {err}");
+            error!("failed to assign primary display: {err}");
           });
       });
 
@@ -97,7 +98,7 @@ pub fn greet(config: Config, demo: bool) -> Result<()> {
       };
 
       window.close().unwrap_or_else(|err| {
-        eprintln!("failed to close window: {err}");
+        error!("failed to close window: {err}");
       });
     });
 
@@ -175,7 +176,7 @@ async fn window_ready(app: tauri::AppHandle) {
   assign_primary(state.config.clone(), &app)
     .await
     .unwrap_or_else(|err| {
-      eprintln!("failed to assign primary display: {err}");
+      error!("failed to assign primary display: {err}");
     });
 }
 
@@ -183,7 +184,7 @@ async fn window_ready(app: tauri::AppHandle) {
 async fn poweroff(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.poweroff().await.unwrap_or_else(|err| {
-    eprintln!("failed to poweroff: {err}");
+    error!("failed to poweroff: {err}");
   });
 }
 
@@ -191,7 +192,7 @@ async fn poweroff(app: tauri::AppHandle) {
 async fn reboot(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.reboot().await.unwrap_or_else(|err| {
-    eprintln!("failed to reboot: {err}");
+    error!("failed to reboot: {err}");
   });
 }
 
@@ -199,7 +200,7 @@ async fn reboot(app: tauri::AppHandle) {
 async fn suspend(app: tauri::AppHandle) {
   let state = app.state::<TauriState>();
   state.power.suspend().await.unwrap_or_else(|err| {
-    eprintln!("failed to suspend: {err}");
+    error!("failed to suspend: {err}");
   });
 }
 
@@ -225,11 +226,11 @@ async fn submit_password(app: tauri::AppHandle, value: String) {
     match greetd.authenticate(value).await {
       Ok(_) => app.exit(0),
       Err(err) => {
-        eprintln!("failed to authenticate: {err}");
+        error!("failed to authenticate: {err}");
         app
           .emit("password-error", err.to_string())
           .unwrap_or_else(|err| {
-            eprintln!("failed to emit password-error: {err}");
+            error!("failed to emit password-error: {err}");
           });
       }
     }
@@ -240,7 +241,7 @@ async fn submit_password(app: tauri::AppHandle, value: String) {
     app
       .emit("password-error", "failed to authenticate".to_string())
       .unwrap_or_else(|err| {
-        eprintln!("failed to emit password-error: {err}");
+        error!("failed to emit password-error: {err}");
       });
   }
 }
