@@ -200,7 +200,7 @@ const PowerControls = (props: PowerControlsProps) => (
 
     <PowerIconButton
       icon="icon-[ph--arrow-clockwise-bold]"
-      onClick={() => invoke("suspend")}
+      onClick={() => invoke("reboot")}
       disabled={props.disabled}
     />
 
