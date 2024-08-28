@@ -40,13 +40,13 @@ impl<'a> BatterySubscription<'a> {
       });
 
       let handle = app_handle.clone();
-      let display_device_handle = display_device.clone();
+      let upower_handle = upower.clone();
       tokio::spawn(async move {
-        let mut stream = display_device_handle.receive_power_supply_changed().await;
+        let mut stream = upower_handle.receive_on_battery_changed().await;
         while let Some(ev) = stream.next().await {
           match ev.get().await {
-            Ok(psu_connected) => handle
-              .emit("psu-connected", psu_connected)
+            Ok(on_battery) => handle
+              .emit("psu-connected", !on_battery)
               .unwrap_or_else(|e| {
                 error!("Failed to emit psu connected: {}", e);
               }),
@@ -69,8 +69,8 @@ impl<'a> BatterySubscription<'a> {
       return Ok(None);
     }
 
+    let psu_connected = !self.upower.on_battery().await?;
     let percentage = display_device.percentage().await?;
-    let psu_connected = display_device.power_supply().await?;
 
     Ok(Some(BatteryState {
       percentage,
