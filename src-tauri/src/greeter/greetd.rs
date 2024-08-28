@@ -45,9 +45,17 @@ impl GreetdClient {
       } => Err(anyhow::anyhow!("auth error: {error_type:?}: {description}")),
     }?;
 
+    let env = self
+      .config
+      .session
+      .env
+      .iter()
+      .map(|(k, v)| format!("{k}={v}"))
+      .collect::<Vec<_>>();
+
     let msg = greetd_ipc::Request::StartSession {
-      cmd: vec![String::from("echo"), String::from("hello world")],
-      env: vec![],
+      cmd: self.config.session.cmd.clone(),
+      env,
     };
 
     msg.write_to(&mut self.socket).await?;

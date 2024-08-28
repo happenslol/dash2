@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, collections::HashMap};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -7,6 +7,15 @@ use serde::Deserialize;
 pub struct ConfigValues {
   pub user: String,
   pub primary_display: Vec<String>,
+  pub session: Session,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct Session {
+  pub cmd: Vec<String>,
+
+  #[serde(default)]
+  pub env: HashMap<String, String>,
 }
 
 pub type Config = Arc<ConfigValues>;
