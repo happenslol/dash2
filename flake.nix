@@ -82,6 +82,7 @@
             copyDesktopItems
             pkg-config
             libxkbcommon
+            wrapGAppsHook3
             pam
           ]
           ++ [
@@ -89,9 +90,16 @@
           ];
 
         buildInputs = with pkgs; [
+          dbus
           openssl
+          freetype
+          libsoup
+          librsvg
           webkitgtk_4_1
+          gdk-pixbuf
+          gtk3
           gtk-layer-shell
+          gsettings-desktop-schemas
         ];
 
         pnpmDeps = pkgs.pnpm.fetchDeps {
@@ -109,21 +117,9 @@
         '';
 
         preInstall = ''
-          echo "hello i'm preinstalling"
-          echo "out is $out"
-
-          ${pkgs.tree}/bin/tree .
           mv src-tauri/target/release/bundle/deb/*/data/usr/ $out
           rm -r $out/share/applications
         '';
-
-        # installPhase = ''
-        #   echo "hello i'm installing"
-        #   echo "out is $out"
-        #
-        #
-        #   runHook postInstall
-        # '';
       });
 
       devShell = pkgs.mkShell {
