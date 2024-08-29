@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
 import { createMemo, createSignal, onMount, Show } from "solid-js"
-import { createClockSignal } from "../shared/clock"
+import { createClockSignal } from "../clock"
 
 const current = getCurrentWebviewWindow()
 

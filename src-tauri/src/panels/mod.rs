@@ -10,7 +10,7 @@ use tauri::{Emitter, Manager};
 use tracing::error;
 
 const WIDTH: i32 = 1400;
-const HIDDEN_HEIGHT: i32 = 10;
+const HIDDEN_HEIGHT: i32 = 6;
 const VISIBLE_HEIGHT: i32 = 200;
 
 struct TauriState<'a> {
