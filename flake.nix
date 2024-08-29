@@ -65,6 +65,7 @@
         librsvg
         pam
         libxkbcommon
+        openssl
       ];
     in {
       packages.default = stdenv.mkDerivation (finalAttrs: {

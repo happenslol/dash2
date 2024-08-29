@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
-import { format } from "date-fns"
-import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createMemo, createSignal, onMount, Show } from "solid-js"
+import { createClockSignal } from "../shared/clock"
 
 const current = getCurrentWebviewWindow()
 
@@ -66,6 +66,13 @@ export const Login = () => {
 
     setIsCheckingPassword(true)
     await invoke("submit_password", { value })
+  }
+
+  // Before suspending, focus the password field so we
+  // can start typing as soon as we wake back up
+  const onBeforeSuspend = () => {
+    passwordField.focus()
+    passwordField.select()
   }
 
   let passwordField!: HTMLInputElement
@@ -152,7 +159,7 @@ export const Login = () => {
         </div>
 
         <div class="fixed bottom-6 flex flex-col gap-4">
-          <PowerControls disabled={isLoading()} />
+          <PowerControls disabled={isLoading()} onBeforeSuspend={onBeforeSuspend} />
           <Clock />
         </div>
       </div>
@@ -186,6 +193,7 @@ const PowerIconButton = (props: PowerIconButtonProps) => (
 )
 
 type PowerControlsProps = {
+  onBeforeSuspend: () => void
   disabled?: boolean
 }
 
@@ -193,7 +201,10 @@ const PowerControls = (props: PowerControlsProps) => (
   <div class="flex items-center justify-center gap-4">
     <PowerIconButton
       icon="icon-[ph--moon-stars-bold]"
-      onClick={() => invoke("suspend")}
+      onClick={() => {
+        props.onBeforeSuspend()
+        invoke("suspend")
+      }}
       disabled={props.disabled}
     />
 
@@ -211,12 +222,8 @@ const PowerControls = (props: PowerControlsProps) => (
   </div>
 )
 
-const getTime = () => format(new Date(), "p")
-
 const Clock = () => {
-  const [time, setTime] = createSignal(getTime())
-  const interval = setInterval(() => setTime(getTime()), 1000)
-  onCleanup(() => clearInterval(interval))
+  const time = createClockSignal()
 
   return (
     <div class="text-stone-200 text-3xl text-center font-bold select-none">

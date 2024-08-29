@@ -1,20 +1,13 @@
-use std::{
-  sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-  },
-  time::Duration,
-};
-
 use crate::{
-  battery::BatterySubscription, config::Config, hyprland::HyprlandConn,
+  battery::BatterySubscription, config::Config, hyprland::{events::Event, HyprlandListener, HyprlandClient},
   layer_shell::LayerShellWindowBuilder, power::Power,
 };
 use anyhow::Result;
 use futures::StreamExt;
+use gdk::Monitor;
 use gtk::prelude::*;
 use tauri::{Emitter, Manager};
-use tokio::{sync::broadcast::channel, time::Instant};
+use tracing::error;
 
 const WIDTH: i32 = 1400;
 const HIDDEN_HEIGHT: i32 = 10;
@@ -23,7 +16,7 @@ const VISIBLE_HEIGHT: i32 = 200;
 struct TauriState<'a> {
   config: Config,
   battery: BatterySubscription<'a>,
-  hyprland: HyprlandConn,
+  hyprland: HyprlandClient,
   power: Power,
 }
 
@@ -39,17 +32,33 @@ pub fn run(config: Config) -> Result<()> {
     let zbus_conn = zbus::Connection::system().await?;
     let battery = BatterySubscription::new(app.handle(), &zbus_conn).await?;
     let power = Power::new(zbus_conn);
-    let hyprland = HyprlandConn::new().await?;
+
+    tokio::spawn(async move {
+      let event_listener = HyprlandListener::new().await.unwrap();
+      let mut stream = event_listener.listen().await.unwrap();
+
+      while let Some(event) = stream.next().await {
+        match event {
+          Event::Workspace(workspace) => {
+            println!("workspace changed: {workspace:?}")
+          },
+          event => println!("event: {event:?}"),
+        }
+      }
+    });
+
+    let hyprland_client = HyprlandClient::new().await?;
 
     app.manage(TauriState {
       config: config.clone(),
+      hyprland: hyprland_client,
       battery,
-      hyprland,
       power,
     });
 
-    let display = gdk::Display::default().unwrap();
     let state = app.state::<TauriState>();
+
+    let display = gdk::Display::default().unwrap();
     let hyprland_monitors = state.hyprland.get_monitors().await?;
     let primary_index = config
       .primary_display
@@ -62,38 +71,50 @@ pub fn run(config: Config) -> Result<()> {
       .unwrap_or(0);
 
     let primary_monitor = display.monitor(primary_index as i32).unwrap();
-    let control = LayerShellWindowBuilder::new("panel-main", "src/control/index.html")
-      .layer(gtk_layer_shell::Layer::Top)
-      .monitor(&primary_monitor)
-      .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
-      .namespace("dash2-control")
-      .edge(false, false, true, false)
-      .size(WIDTH, HIDDEN_HEIGHT)
-      .background_color(0., 0., 0., 0.2)
-      .build(app.handle())?;
-
-    #[cfg(debug_assertions)]
-    control.open_devtools();
-
-    let control_gtk = control.gtk_window().unwrap();
-
-    let control_handle = control.clone();
-    control_gtk.connect_enter_notify_event(move |control_gtk, _| {
-      control_handle.emit("enter", ()).unwrap();
-      control_gtk.set_size_request(WIDTH, VISIBLE_HEIGHT);
-      gdk::glib::Propagation::Stop
-    });
-
-    let control_handle = control.clone();
-    control_gtk.connect_leave_notify_event(move |_, _| {
-      control_handle.emit("leave", ()).unwrap();
-      gdk::glib::Propagation::Stop
-    });
+    run_control(app.handle(), &primary_monitor)?;
 
     app.run(|_, _| {});
 
     Ok(())
   })
+}
+
+fn run_control(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
+  let control = LayerShellWindowBuilder::new("panel-main", "src/control/index.html")
+    .layer(gtk_layer_shell::Layer::Top)
+    .monitor(monitor)
+    .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
+    .namespace("dash2-control")
+    .edge(false, false, true, false)
+    .size(WIDTH, HIDDEN_HEIGHT)
+    .background_color(0., 0., 0., 0.0)
+    .build(app)?;
+
+  #[cfg(debug_assertions)]
+  control.open_devtools();
+
+  let control_gtk = control.gtk_window()?;
+
+  let control_handle = control.clone();
+  control_gtk.connect_enter_notify_event(move |control_gtk, _| {
+    control_handle.emit("enter", ()).unwrap_or_else(|err| {
+      error!("failed to emit enter: {err}");
+    });
+
+    control_gtk.set_size_request(WIDTH, VISIBLE_HEIGHT);
+    gdk::glib::Propagation::Stop
+  });
+
+  let control_handle = control.clone();
+  control_gtk.connect_leave_notify_event(move |_, _| {
+    control_handle.emit("leave", ()).unwrap_or_else(|err| {
+      error!("failed to emit leave: {err}");
+    });
+
+    gdk::glib::Propagation::Stop
+  });
+
+  Ok(())
 }
 
 #[tauri::command]

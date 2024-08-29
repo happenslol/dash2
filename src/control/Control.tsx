@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
 import { createSignal } from "solid-js"
+import { createClockSignal } from "../shared/clock"
 
 const current = getCurrentWebviewWindow()
 
@@ -28,8 +29,8 @@ export const Control = () => {
   return (
     <div
       class={clsx(
-        "left-0 right-0 fixed bottom-2 flex justify-center transition-all",
-        !isVisible() && "translate-y-[100px]",
+        "left-0 right-0 fixed bottom-3 flex justify-center transition-all duration-200",
+        !isVisible() && "translate-y-[40px] opacity-0"
       )}
     >
       <div class="rounded-2xl bg-stone-700 min-w-0 py-4 px-6 gap-6 flex items-center text-white">
@@ -61,6 +62,7 @@ const TextIcon = (props: { icon: string; text: string }) => (
   </div>
 )
 
-const Clock = () => (
-  <div class="text-4xl text-stone-200 font-bold select-none">21:34</div>
-)
+const Clock = () => {
+  const time = createClockSignal()
+  return <div class="text-4xl text-stone-200 font-bold select-none">{time()}</div>
+}

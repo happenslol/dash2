@@ -9,7 +9,7 @@ use tracing::error;
 use crate::{
   battery::{BatteryState, BatterySubscription},
   config::Config,
-  hyprland::HyprlandConn,
+  hyprland::HyprlandClient,
   layer_shell::LayerShellWindowBuilder,
   power::Power,
   util::rand_string,
@@ -23,7 +23,7 @@ struct TauriState<'a> {
   config: Config,
   greetd: Option<Mutex<GreetdClient>>,
   battery: BatterySubscription<'a>,
-  hyprland: HyprlandConn,
+  hyprland: HyprlandClient,
   power: Power,
 }
 
@@ -46,8 +46,6 @@ pub fn greet(config: Config, demo: bool) -> Result<()> {
     let display =
       gdk::Display::default().ok_or_else(|| anyhow::anyhow!("failed to get display"))?;
 
-    let hyprland_conn = HyprlandConn::new().await?;
-
     let zbus_conn = zbus::Connection::system().await?;
     let battery = BatterySubscription::new(app.handle(), &zbus_conn).await?;
     let power = Power::new(zbus_conn);
@@ -58,10 +56,12 @@ pub fn greet(config: Config, demo: bool) -> Result<()> {
       Some(Mutex::new(greetd::GreetdClient::new(config.clone()).await?))
     };
 
+    let hyprland_client = HyprlandClient::new().await?;
+
     app.manage(TauriState {
       config: config.clone(),
-      hyprland: hyprland_conn,
       greetd: greetd_client,
+      hyprland: hyprland_client,
       battery,
       power,
     });
