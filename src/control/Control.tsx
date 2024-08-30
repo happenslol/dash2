@@ -21,9 +21,7 @@ export const Control = () => {
 
   current.listen("leave", () => {
     setIsVisible(false)
-    timer = setTimeout(async () => {
-      await invoke("hide_control")
-    }, 500)
+    timer = setTimeout(async () => await invoke("hide_panel"), 500)
   })
 
   return (
@@ -64,5 +62,7 @@ const TextIcon = (props: { icon: string; text: string }) => (
 
 const Clock = () => {
   const time = createClockSignal()
-  return <div class="text-4xl text-stone-200 font-bold select-none">{time()}</div>
+  return (
+    <div class="text-4xl text-stone-200 font-bold select-none">{time()}</div>
+  )
 }
