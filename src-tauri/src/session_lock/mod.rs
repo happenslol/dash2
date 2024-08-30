@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use smithay_client_toolkit::reexports::calloop::channel::{channel, Sender};
 use tauri::{Emitter, Manager};
@@ -21,7 +23,7 @@ struct TauriState<'a> {
   power: Power,
 }
 
-pub fn run(config: Config) -> Result<()> {
+pub fn run(config: Config, should_suspend: bool) -> Result<()> {
   let rt = tokio::runtime::Runtime::new()?;
   rt.block_on(async {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
@@ -57,6 +59,17 @@ pub fn run(config: Config) -> Result<()> {
       window_ready_tx,
       window_ready_rx,
     )?;
+
+    if should_suspend {
+      let handle = app.handle().clone();
+      tokio::spawn(async move {
+        let state = handle.state::<TauriState>();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        state.power.suspend().await.unwrap_or_else(|err| {
+          error!("failed to suspend: {err}");
+        });
+      });
+    }
 
     app.run(|_, _| {});
     lock_handle

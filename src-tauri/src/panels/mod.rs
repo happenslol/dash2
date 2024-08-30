@@ -11,7 +11,7 @@ use futures::StreamExt;
 use gdk::Monitor;
 use gtk::prelude::*;
 use tauri::{Emitter, Manager};
-use tracing::{error, info};
+use tracing::error;
 
 const PANEL_NAMESPACE: &str = "dash2-panel";
 const PANEL_HIDDEN_HEIGHT: i32 = 6;

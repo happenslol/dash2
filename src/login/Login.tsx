@@ -3,6 +3,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import clsx from "clsx"
 import { createMemo, createSignal, onMount, Show } from "solid-js"
 import { createClockSignal } from "../clock"
+import { twMerge } from "tailwind-merge"
 
 const current = getCurrentWebviewWindow()
 
@@ -13,6 +14,7 @@ type BatteryState = {
 
 export const Login = () => {
   const [isPrimary, setIsPrimary] = createSignal(false)
+  const [fadeIn, setFadeIn] = createSignal(false)
   const [hasBattery, setHasBattery] = createSignal(false)
   const [psuConnected, setPsuConnected] = createSignal(false)
   const [batteryPercentage, setBatteryPercentage] = createSignal(0)
@@ -58,7 +60,21 @@ export const Login = () => {
     () => isCheckingPassword() || isCheckingFingerprint()
   )
 
-  current.listen<boolean>("is-primary", ev => setIsPrimary(ev.payload))
+  let fadeInTimer: number | null
+  current.listen<boolean>("is-primary", ev => {
+    if (fadeInTimer != null) {
+      clearTimeout(fadeInTimer)
+      fadeInTimer = null
+    }
+
+    setIsPrimary(ev.payload)
+    if (ev.payload) {
+      passwordField.focus()
+      setTimeout(() => setFadeIn(true), 100)
+    }
+
+    if (!ev.payload) setFadeIn(false)
+  })
 
   const submit = async (value: string) => {
     if (isLoading()) return
@@ -79,7 +95,12 @@ export const Login = () => {
 
   return (
     <Show when={isPrimary()}>
-      <div class="w-full h-screen flex items-center justify-center cursor-default select-none">
+      <div
+        class={twMerge(
+          "w-full h-screen flex items-center justify-center cursor-default select-none transition-opacity duration-500 opacity-0",
+          fadeIn() && "opacity-1"
+        )}
+      >
         <div class="flex flex-col items-center justify-center gap-4">
           <img src="/profile.webp" class="rounded-full h-[100px]" />
 
@@ -159,7 +180,10 @@ export const Login = () => {
         </div>
 
         <div class="fixed bottom-6 flex flex-col gap-4">
-          <PowerControls disabled={isLoading()} onBeforeSuspend={onBeforeSuspend} />
+          <PowerControls
+            disabled={isLoading()}
+            onBeforeSuspend={onBeforeSuspend}
+          />
           <Clock />
         </div>
       </div>

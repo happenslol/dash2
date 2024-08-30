@@ -30,7 +30,11 @@ struct Args {
 #[derive(Debug, Subcommand)]
 enum Command {
   /// Lock the session
-  Lock,
+  Lock {
+    /// Suspend the session after locking
+    #[arg(short, long)]
+    suspend: bool,
+  },
 
   /// Start the greeter
   Greet {
@@ -54,7 +58,7 @@ fn main() -> Result<()> {
   let config = config::load(&args.config)?;
 
   match args.command {
-    Command::Lock => session_lock::run(config),
+    Command::Lock { suspend } => session_lock::run(config, suspend),
     Command::Greet { demo } => greeter::greet(config, demo),
     Command::Run => panels::run(config),
     Command::PrintConfig => {

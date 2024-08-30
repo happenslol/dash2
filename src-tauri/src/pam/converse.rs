@@ -13,14 +13,18 @@ pub trait Converse {
   ///
   /// This would typically be the username. The exact question is provided as the
   /// `msg` argument if you wish to display it to your user.
+  #[allow(clippy::result_unit_err)]
   fn prompt_echo(&self, msg: &str) -> ::std::result::Result<String, ()>;
   /// PAM requests a value that should be typed blindly by the user
   ///
   /// This would typically be the password. The exact question is provided as the
   /// `msg` argument if you wish to display it to your user.
+  #[allow(clippy::result_unit_err)]
   fn prompt_blind(&self, msg: &str) -> ::std::result::Result<String, ()>;
   /// This is an informational message from PAM
+  #[allow(clippy::result_unit_err)]
   fn info(&self, msg: &str) -> Result<(), ()>;
   /// This is an error message from PAM
+  #[allow(clippy::result_unit_err)]
   fn error(&self, msg: &str) -> Result<(), ()>;
 }
