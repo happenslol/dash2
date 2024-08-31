@@ -14,18 +14,12 @@ use tauri::{Emitter, Manager};
 use tracing::error;
 
 const PANEL_NAMESPACE: &str = "dash2-panel";
-const PANEL_HIDDEN_HEIGHT: i32 = 6;
-
 const CONTROL_LABEL: &str = "control";
-const CONTROL_WIDTH: i32 = 1400;
-const CONTROL_VISIBLE_HEIGHT: i32 = 200;
-
 const BARS_LABEL: &str = "bars";
-const BARS_WIDTH: i32 = 400;
-const BARS_VISIBLE_HEIGHT: i32 = 200;
-
 const WORKSPACE_LABEL_PREFIX: &str = "workspace-";
-const WORKSPACE_WIDTH: i32 = 200;
+
+const PANEL_HIDDEN_HEIGHT: i32 = 2;
+const PANEL_BG_ALPHA: f64 = 0.0;
 
 struct TauriState<'a> {
   config: Config,
@@ -40,7 +34,11 @@ pub fn run(config: Config) -> Result<()> {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
     let app = tauri::Builder::default()
-      .invoke_handler(tauri::generate_handler![hide_panel])
+      .invoke_handler(tauri::generate_handler![
+        hide_panel,
+        request_width,
+        request_height
+      ])
       .build(tauri::generate_context!())?;
 
     let zbus_conn = zbus::Connection::system().await?;
@@ -71,7 +69,6 @@ pub fn run(config: Config) -> Result<()> {
     });
 
     let state = app.state::<TauriState>();
-
     let display = gdk::Display::default().unwrap();
     let hyprland_monitors = state.hyprland.get_monitors().await?;
     let primary_index = config
@@ -108,24 +105,23 @@ fn run_workspace(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
     .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
     .namespace(PANEL_NAMESPACE)
     .edge(true, false, false, false)
-    .size(CONTROL_WIDTH, PANEL_HIDDEN_HEIGHT)
-    .background_color(0., 0., 0., 0.3)
+    .size(0, PANEL_HIDDEN_HEIGHT)
+    .background_color(0., 0., 0., PANEL_BG_ALPHA)
     .build(app)?;
 
   // #[cfg(debug_assertions)]
-  // control.open_devtools();
+  // window.open_devtools();
 
   let gtk_window = window.gtk_window()?;
 
   let window_handle = window.clone();
-  gtk_window.connect_enter_notify_event(move |control_gtk, _| {
+  gtk_window.connect_enter_notify_event(move |_, _| {
     window_handle
       .emit_to(window_handle.label(), "enter", ())
       .unwrap_or_else(|err| {
         error!("failed to emit enter: {err}");
       });
 
-    control_gtk.set_size_request(CONTROL_WIDTH, CONTROL_VISIBLE_HEIGHT);
     gdk::glib::Propagation::Stop
   });
 
@@ -150,24 +146,23 @@ fn run_bars(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
     .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
     .namespace(PANEL_NAMESPACE)
     .edge(false, true, true, false)
-    .size(BARS_WIDTH, PANEL_HIDDEN_HEIGHT)
-    .background_color(0., 0., 0., 0.3)
+    .size(0, PANEL_HIDDEN_HEIGHT)
+    .background_color(0., 0., 0., PANEL_BG_ALPHA)
     .build(app)?;
 
   // #[cfg(debug_assertions)]
-  // control.open_devtools();
+  // window.open_devtools();
 
   let gtk_window = window.gtk_window()?;
 
   let window_handle = window.clone();
-  gtk_window.connect_enter_notify_event(move |control_gtk, _| {
+  gtk_window.connect_enter_notify_event(move |_, _| {
     window_handle
       .emit_to(window_handle.label(), "enter", ())
       .unwrap_or_else(|err| {
         error!("failed to emit enter: {err}");
       });
 
-    control_gtk.set_size_request(BARS_WIDTH, BARS_VISIBLE_HEIGHT);
     gdk::glib::Propagation::Stop
   });
 
@@ -192,24 +187,23 @@ fn run_control(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
     .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
     .namespace(PANEL_NAMESPACE)
     .edge(false, false, true, false)
-    .size(CONTROL_WIDTH, PANEL_HIDDEN_HEIGHT)
-    .background_color(0., 0., 0., 0.3)
+    .size(0, PANEL_HIDDEN_HEIGHT)
+    .background_color(0., 0., 0., PANEL_BG_ALPHA)
     .build(app)?;
 
-  // #[cfg(debug_assertions)]
-  // control.open_devtools();
+  #[cfg(debug_assertions)]
+  window.open_devtools();
 
   let gtk_window = window.gtk_window()?;
 
   let window_handle = window.clone();
-  gtk_window.connect_enter_notify_event(move |control_gtk, _| {
+  gtk_window.connect_enter_notify_event(move |_, _| {
     window_handle
       .emit_to(window_handle.label(), "enter", ())
       .unwrap_or_else(|err| {
         error!("failed to emit enter: {err}");
       });
 
-    control_gtk.set_size_request(CONTROL_WIDTH, CONTROL_VISIBLE_HEIGHT);
     gdk::glib::Propagation::Stop
   });
 
@@ -231,6 +225,18 @@ fn run_control(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
 async fn hide_panel(window: tauri::WebviewWindow) {
   let gtk_window = window.gtk_window().unwrap();
   gtk_window.set_height_request(PANEL_HIDDEN_HEIGHT);
+}
+
+#[tauri::command]
+async fn request_width(window: tauri::WebviewWindow, width: i32) {
+  let gtk_window = window.gtk_window().unwrap();
+  gtk_window.set_width_request(width);
+}
+
+#[tauri::command]
+async fn request_height(window: tauri::WebviewWindow, height: i32) {
+  let gtk_window = window.gtk_window().unwrap();
+  gtk_window.set_height_request(height);
 }
 
 // let control_gtk = control.gtk_window().unwrap();

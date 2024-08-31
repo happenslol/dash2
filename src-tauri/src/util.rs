@@ -3,8 +3,11 @@ use gdk::{glib::translate::ToGlibPtr, prelude::*};
 use gtk::{prelude::*, Widget};
 use once_cell::sync::Lazy;
 use rand::{distributions::Alphanumeric, Rng};
-use wayland_backend::client::ObjectId;
-use wayland_client::{protocol::{wl_surface::WlSurface, wl_output::WlOutput}, Connection, Proxy};
+use wayland_backend::client::{Backend, ObjectId};
+use wayland_client::{
+  protocol::{wl_compositor::WlCompositor, wl_output::WlOutput, wl_surface::WlSurface},
+  Connection, Proxy,
+};
 
 pub fn get_current_username() -> Option<String> {
   let uid = unsafe { libc::getuid() };
@@ -53,6 +56,23 @@ pub fn get_wl_window<T: IsA<Widget>>(gtk_window: &T) -> Result<gdkwayland::Wayla
   Ok(result)
 }
 
+pub fn get_wl_connection(wl_display: &gdkwayland::WaylandDisplay) -> Result<Connection> {
+  let display_ptr =
+    unsafe { gdk_wayland_sys::gdk_wayland_display_get_wl_display(wl_display.to_glib_none().0) };
+  let backend = unsafe { Backend::from_foreign_display(display_ptr as *mut _) };
+  Ok(wayland_client::Connection::from_backend(backend))
+}
+
+pub fn get_wl_compositor(
+  conn: &Connection,
+  wl_display: &gdkwayland::WaylandDisplay,
+) -> Result<WlCompositor> {
+  let compositor_ptr =
+    unsafe { gdk_wayland_sys::gdk_wayland_display_get_wl_compositor(wl_display.to_glib_none().0) };
+  let id = unsafe { ObjectId::from_ptr(WlCompositor::interface(), compositor_ptr as *mut _)? };
+  Ok(WlCompositor::from_id(conn, id)?)
+}
+
 pub fn get_wl_surface(
   conn: &Connection,
   wl_window: &gdkwayland::WaylandWindow,
@@ -60,9 +80,9 @@ pub fn get_wl_surface(
   let ptr =
     unsafe { gdk_wayland_sys::gdk_wayland_window_get_wl_surface(wl_window.to_glib_none().0) };
 
-  let surface = unsafe { ObjectId::from_ptr(WlSurface::interface(), ptr as *mut _)? };
+  let id = unsafe { ObjectId::from_ptr(WlSurface::interface(), ptr as *mut _)? };
 
-  Ok(WlSurface::from_id(conn, surface)?)
+  Ok(WlSurface::from_id(conn, id)?)
 }
 
 static WINDOW_TITLE_RE: Lazy<regex::Regex> =
@@ -75,4 +95,3 @@ pub fn get_output_window_label(output: &WlOutput) -> String {
 
   format!("lock-{}", sanitized)
 }
-
