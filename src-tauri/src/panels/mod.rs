@@ -8,13 +8,13 @@ use crate::{
 };
 use anyhow::Result;
 use futures::StreamExt;
-use gdk::Monitor;
+use gdk::{
+  cairo::{RectangleInt, Region},
+  Monitor,
+};
 use gtk::prelude::*;
-use smithay_client_toolkit::reexports::calloop::channel::{channel, Sender};
 use tauri::{Emitter, Manager};
 use tracing::error;
-
-mod wayland;
 
 const PANEL_NAMESPACE: &str = "dash2-panel";
 const CONTROL_LABEL: &str = "control";
@@ -29,7 +29,6 @@ struct TauriState<'a> {
   battery: BatterySubscription<'a>,
   hyprland: HyprlandClient,
   power: Power,
-  wayland_exit_tx: Sender<()>,
 }
 
 pub fn run(config: Config) -> Result<()> {
@@ -65,16 +64,12 @@ pub fn run(config: Config) -> Result<()> {
 
     let hyprland_client = HyprlandClient::new().await?;
 
-    let (exit_tx, exit_rx) = channel();
     app.manage(TauriState {
       config: config.clone(),
       hyprland: hyprland_client,
       battery,
       power,
-      wayland_exit_tx: exit_tx,
     });
-
-    let wayland_handle = wayland::run(config.clone(), app.handle(), exit_rx)?;
 
     let state = app.state::<TauriState>();
     let display = gdk::Display::default().unwrap();
@@ -90,19 +85,17 @@ pub fn run(config: Config) -> Result<()> {
       .unwrap_or(0);
 
     let primary_monitor = display.monitor(primary_index as i32).unwrap();
+    run_panels(app.handle(), &primary_monitor)?;
 
-    run_control(app.handle(), &primary_monitor)?;
-    run_bars(app.handle(), &primary_monitor)?;
+    // run_control(app.handle(), &primary_monitor)?;
+    // run_bars(app.handle(), &primary_monitor)?;
 
-    for n in 0..display.n_monitors() {
-      let monitor = display.monitor(n).unwrap();
-      run_workspace(app.handle(), &monitor)?;
-    }
+    // for n in 0..display.n_monitors() {
+    //   let monitor = display.monitor(n).unwrap();
+    //   run_workspace(app.handle(), &monitor)?;
+    // }
 
     app.run(|_, _| {});
-    wayland_handle
-      .join()
-      .expect("error while joining wayland thread");
 
     Ok(())
   })
@@ -191,6 +184,50 @@ fn run_bars(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
   Ok(())
 }
 
+fn run_panels(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
+  let window = LayerShellWindowBuilder::new(BARS_LABEL, "src/panels/index.html")
+    .layer(gtk_layer_shell::Layer::Top)
+    .monitor(monitor)
+    .keyboard_mode(gtk_layer_shell::KeyboardMode::OnDemand)
+    .namespace(PANEL_NAMESPACE)
+    .edge(true, true, true, true)
+    .size(0, 0)
+    .background_color(0., 0., 0., PANEL_BG_ALPHA)
+    .build(app)?;
+
+  // #[cfg(debug_assertions)]
+  // window.open_devtools();
+
+  let gtk_window = window.gtk_window()?;
+
+  let region = Region::create_rectangle(&RectangleInt::new(0, 0, 0, 0));
+  gtk_window.input_shape_combine_region(Some(&region));
+
+  // let window_handle = window.clone();
+  // gtk_window.connect_enter_notify_event(move |_, _| {
+  //   window_handle
+  //     .emit_to(window_handle.label(), "enter", ())
+  //     .unwrap_or_else(|err| {
+  //       error!("failed to emit enter: {err}");
+  //     });
+  //
+  //   gdk::glib::Propagation::Stop
+  // });
+  //
+  // let window_handle = window.clone();
+  // gtk_window.connect_leave_notify_event(move |_, _| {
+  //   window_handle
+  //     .emit_to(window_handle.label(), "leave", ())
+  //     .unwrap_or_else(|err| {
+  //       error!("failed to emit leave: {err}");
+  //     });
+  //
+  //   gdk::glib::Propagation::Stop
+  // });
+
+  Ok(())
+}
+
 fn run_control(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
   let window = LayerShellWindowBuilder::new(CONTROL_LABEL, "src/control/index.html")
     .layer(gtk_layer_shell::Layer::Top)
@@ -202,8 +239,8 @@ fn run_control(app: &tauri::AppHandle, monitor: &Monitor) -> Result<()> {
     .background_color(0., 0., 0., PANEL_BG_ALPHA)
     .build(app)?;
 
-  #[cfg(debug_assertions)]
-  window.open_devtools();
+  // #[cfg(debug_assertions)]
+  // window.open_devtools();
 
   let gtk_window = window.gtk_window()?;
 
