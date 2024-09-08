@@ -10,8 +10,11 @@ use anyhow::Result;
 use futures::StreamExt;
 use gdk::Monitor;
 use gtk::prelude::*;
+use smithay_client_toolkit::reexports::calloop::channel::{channel, Sender};
 use tauri::{Emitter, Manager};
 use tracing::error;
+
+mod wayland;
 
 const PANEL_NAMESPACE: &str = "dash2-panel";
 const CONTROL_LABEL: &str = "control";
@@ -26,6 +29,7 @@ struct TauriState<'a> {
   battery: BatterySubscription<'a>,
   hyprland: HyprlandClient,
   power: Power,
+  wayland_exit_tx: Sender<()>,
 }
 
 pub fn run(config: Config) -> Result<()> {
@@ -61,12 +65,16 @@ pub fn run(config: Config) -> Result<()> {
 
     let hyprland_client = HyprlandClient::new().await?;
 
+    let (exit_tx, exit_rx) = channel();
     app.manage(TauriState {
       config: config.clone(),
       hyprland: hyprland_client,
       battery,
       power,
+      wayland_exit_tx: exit_tx,
     });
+
+    let wayland_handle = wayland::run(config.clone(), app.handle(), exit_rx)?;
 
     let state = app.state::<TauriState>();
     let display = gdk::Display::default().unwrap();
@@ -92,6 +100,9 @@ pub fn run(config: Config) -> Result<()> {
     }
 
     app.run(|_, _| {});
+    wayland_handle
+      .join()
+      .expect("error while joining wayland thread");
 
     Ok(())
   })
