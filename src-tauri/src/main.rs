@@ -15,7 +15,7 @@ pub mod scrambler;
 pub mod util;
 
 mod greeter;
-mod panels;
+mod desktop;
 mod session_lock;
 
 #[derive(Debug, Parser)]
@@ -44,7 +44,7 @@ enum Command {
   },
 
   /// Start the desktop environment
-  Run,
+  Desktop,
 
   /// Print the configuration
   PrintConfig,
@@ -60,7 +60,7 @@ fn main() -> Result<()> {
   match args.command {
     Command::Lock { suspend } => session_lock::run(config, suspend),
     Command::Greet { demo } => greeter::greet(config, demo),
-    Command::Run => panels::run(config),
+    Command::Desktop => desktop::run(config),
     Command::PrintConfig => {
       println!("{:#?}", config);
       Ok(())
