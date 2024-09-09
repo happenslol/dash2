@@ -105,7 +105,7 @@
 
         pnpmDeps = pkgs.pnpm.fetchDeps {
           inherit (finalAttrs) pname version src;
-          hash = "sha256-W24jVV9RHbHxYvHUrLa5zvpngMmabQFNZuE545DLTn4=";
+          hash = "sha256-Qts/jLOQPoA1RbyKNfWMdb3orstHbbirBuCoHbQh+mQ=";
         };
 
         cargoRoot = "src-tauri/";
